@@ -193,7 +193,7 @@ class JoinManager:
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v4.2 - Micro Grid", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v1.0 - @dimsgti", cyan | curses.A_BOLD)
         
         # Bingkai Tabel Estetis KAERU
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
@@ -209,8 +209,8 @@ class JoinManager:
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
         stdscr.addstr(11, 45, "20s (Locked)", white)
         
-        stdscr.addstr(12, 0, "│ Engine Mode                              │                        │", cyan)
-        stdscr.addstr(12, 45, "AppCloner XML Grid Injection", white)
+        stdscr.addstr(12, 0, "│ Duration                              │                        │", cyan)
+        stdscr.addstr(12, 45, "Lifetime", white)
         
         stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
