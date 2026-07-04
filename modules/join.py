@@ -1,7 +1,7 @@
 """
-DHub-Rejoin - Absolute Stability Visual Engine (Pure Text Alignment - Landscape Fix)
+DHub-Rejoin - Compact Visual Engine (Landscape Fix)
 Author: Senior Python Developer
-Description: Uses fixed spacing layout without any box characters to prevent layout shattering on Redfinger.
+Description: Minimalist textual layout to prevent layout shattering on low-column terminal environments.
 """
 
 import time
@@ -94,47 +94,36 @@ class JoinManager:
             if process:
                 process.terminate()
 
-    def print_kaeru_layout(self, kaeru_header: str, target_pkg: str, ram_info: str):
-        """Merender tampilan stabil tanpa karakter box border agar tidak pecah berantakan."""
-        # Hard clear terminal tingkat OS
+    def print_kaeru_layout(self, target_pkg: str, ram_info: str):
+        """Merender layout minimalis yang sangat stabil tanpa memicu pembungkusan baris."""
         os.system("clear")
         
-        # Cetak header logo
-        print(kaeru_header)
+        # Mengganti logo besar dengan teks ringkas yang aman dari pemotongan layar
+        print("\033[96m====================================================\033[0m")
+        print("\033[96m                 DHUB LAUNCHER v1.0                 \033[0m")
+        print("\033[96m====================================================\033[0m")
         
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
         
-        # Penentuan warna teks status manual menggunakan kode ANSI standar (Bypass Rich Bug)
         if self.engine_status in ["Online", "Launched"]:
-            status_color = f"\033[92m{self.engine_status}\033[0m" # Hijau
+            status_color = f"\033[92m{self.engine_status}\033[0m"
         elif self.engine_status == "Offline":
-            status_color = f"\033[91m{self.engine_status}\033[0m" # Merah
+            status_color = f"\033[91m{self.engine_status}\033[0m"
         else:
-            status_color = f"\033[95m{self.engine_status}\033[0m" # Magenta
+            status_color = f"\033[95m{self.engine_status}\033[0m"
 
-        # Cetak visual dua kolom murni dengan jarak spacing yang dikunci absolut
-        print(f"\033[96m%-55s %-20s\033[0m" % ("PACKAGE", "STATUS"))
-        print("-" * 76)
-        print("%-55s Free: %s" % ("System Memory", ram_info))
-        print("%-55s %ss..." % ("Launch Delay", delay_cfg))
-        print("-" * 76)
-        print("%-55s %s" % (target_pkg, status_color))
-        print("-" * 76)
-        print("\n\033[37m» Tekan Enter Kapan Saja Untuk Berhenti Pemantauan Core Engine...\033[0m")
+        # Menggunakan format cetak baris sederhana yang kebal dari penyusutan tty shell
+        print(" PACKAGE                                      STATUS")
+        print(" --------------------------------------------------")
+        print(f" System Memory                                Free: {ram_info}")
+        print(f" Launch Delay                                 {delay_cfg}s...")
+        print(" --------------------------------------------------")
+        print(f" {target_pkg:<44} {status_color}")
+        print(" --------------------------------------------------")
+        print("\n\033[37m » Tekan Enter Untuk Berhenti Pemantauan Core Engine...\033[0m")
 
     def launch_app(self):
         """Siklus utama monitoring."""
-        # Menggunakan warna ANSI standar untuk header agar tidak dipengaruhi perubahan layar
-        kaeru_header = (
-            "\033[96m██████╗ ██╗  ██╗██╗   ██╗██████╗ \n"
-            "██╔══██╗██║  ██║██║   ██║██╔══██╗\n"
-            "██║  ██║███████║██║   ██║██████╔╝\n"
-            "██║  ██║██╔══██║██║   ██║██╔══██╗\n"
-            "██████╔╝██║  ██║╚██████╔╝██████╔╝\n"
-            "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ \n"
-            "            Launcher v1.0\033[0m\n"
-        )
-        
         target_pkg = self.config_mgr.config_data.get("package", "")
         place_id = self.config_mgr.config_data.get("place_id", "")
         
@@ -172,7 +161,7 @@ class JoinManager:
             input_thread.start()
             
             while not stop_event.is_set():
-                self.print_kaeru_layout(kaeru_header, target_pkg, ram_info)
+                self.print_kaeru_layout(target_pkg, ram_info)
                 time.sleep(0.7)
                 
         finally:
