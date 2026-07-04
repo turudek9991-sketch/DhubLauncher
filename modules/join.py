@@ -10,6 +10,7 @@ import threading
 import sys
 from rich.console import Console
 from rich.table import Table
+from rich import box
 
 console = Console()
 
@@ -18,7 +19,6 @@ class JoinManager:
         self.config_mgr = config_mgr
         self.logger = logger
         
-        # Penanganan impor lokal yang aman untuk menghindari circular dependency
         from modules.webhook import WebhookManager
         from modules.arrange import ArrangeManager
         
@@ -30,7 +30,6 @@ class JoinManager:
         self.engine_status = "Ready"
 
     def _execute_shell(self, command: str) -> bool:
-        """Eksekusi perintah internal dengan hak akses superuser root."""
         try:
             root_command = f"su -c '{command}'"
             result = subprocess.run(root_command, shell=True, capture_output=True, text=True, timeout=10)
@@ -40,7 +39,6 @@ class JoinManager:
             return False
 
     def trigger_intent_launch(self, target_pkg: str, place_id: str):
-        """Menembakkan Android Intent URI Scheme langsung menuju target game."""
         if place_id:
             cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {target_pkg}"
             action_desc = f"Auto-Rejoin fired directly to Place ID: {place_id}"
@@ -57,7 +55,6 @@ class JoinManager:
             self.webhook_mgr.send_status_embed(status="FAILED", action_detail="Failed to push root intent during daemon cycle.")
 
     def background_monitor_loop(self, target_pkg: str, place_id: str):
-        """Daemon Worker: Memantau logcat perangkat untuk mendeteksi Crash/DC di latar belakang."""
         self.logger.info("Background logcat daemon monitoring loop activated.")
         self._execute_shell("logcat -c")
         
@@ -102,42 +99,44 @@ class JoinManager:
                 process.terminate()
 
     def print_kaeru_layout(self, kaeru_header: str, target_pkg: str, place_id: str, ram_info: str):
-        """Mencetak struktur tabel dua kolom murni secara manual dan membersihkan layar terminal."""
-        # Gunakan ANSI Escape Code untuk membersihkan layar secara instan dan efisien (Anti-Duplikasi)
+        """Mencetak struktur tabel terbungkus kotak cyan yang stabil dan rapi (Anti-Hancur)."""
+        # Bersihkan terminal secara instan ke koordinat awal 0,0
         sys.stdout.write("\033[H\033[2J")
         sys.stdout.flush()
         
-        # Cetak Header Besar di Pucuk
+        # Tampilkan logo teks besar DHUB di atas
         console.print(kaeru_header)
         
-        # Buat Struktur Tabel Dua Kolom Murni Sesuai Gambar Referensi
-        table = Table(box=None, padding=(0, 4), show_header=True, header_style="bold cyan")
+        # PEMBUATAN TABEL: Menggunakan border SQUARE solid cyan agar persis seperti KAERU
+        table = Table(box=box.SQUARE, border_style="cyan", show_header=True, header_style="bold cyan", width=70)
         table.add_column("PACKAGE", style="bold white", width=42)
         table.add_column("STATUS", style="bold cyan", width=24)
         
-        # Ambil delay konfigurasi saat ini
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
         
-        # Baris 1: Informasi Sistem Memori (RAM)
+        # 1. Baris Informasi System Memory
         table.add_row("System Memory", f"Free: {ram_info}")
         
-        # Baris 2: Informasi Delay Aktif
+        # 2. Baris Informasi Launch Delay
         table.add_row("Launch Delay", f"{delay_cfg}s...")
         
-        # Baris Pembatas Horizontal Kustom
-        table.add_row("─" * 42, "─" * 24)
+        # Baris kosong sebagai pembatas struktural tengah tabel
+        table.add_section()
         
-        # Pewarnaan Status Dinamis
-        status_display = f"[bold green]{self.engine_status}[/bold green]" if self.engine_status in ["Online", "Launched"] else f"[bold magenta]{self.engine_status}[/bold magenta]"
-        if self.engine_status == "Offline":
+        # Penentuan warna status dinamis
+        if self.engine_status == "Online":
+            status_display = "[bold green]Online[/bold green]"
+        elif self.engine_status == "Launched":
+            status_display = "[bold yellow]Launched[/bold yellow]"
+        elif self.engine_status == "Offline":
             status_display = "[bold red]Offline[/bold red]"
-        elif self.engine_status == "Ready":
-            status_display = "[white]Ready[/white]"
+        else:
+            status_display = f"[bold magenta]{self.engine_status}[/bold magenta]"
             
-        # Baris 3: Informasi Target Package
-        # Catatan: Jika ingin menyuntikkan teks username khusus seperti (w1dnFarmer), Anda tinggal menambahkannya di parameter string di bawah
+        # 3. Baris Target Package Aktif
         table.add_row(f"{target_pkg}", status_display)
         
+        # Cetak objek tabel ke layar
         console.print(table)
         console.print("\n[dim white]» Tekan Enter Kapan Saja Untuk Berhenti Pemantauan Core Engine...[/dim white]")
 
@@ -172,7 +171,6 @@ class JoinManager:
         self.is_monitoring = True
         self.engine_status = "Ready"
         
-        # Membuka thread latar belakang
         self.monitor_thread = threading.Thread(
             target=self.background_monitor_loop,
             args=(target_pkg, place_id),
@@ -180,10 +178,7 @@ class JoinManager:
         )
         self.monitor_thread.start()
 
-        # Engine loop rendering manual (Anti-Freeze & Anti-Duplicate)
-        # Mengeliminasi component Live rich agar kompatibel penuh dengan lingkungan termux cloud
         try:
-            # Thread pembantu untuk menangani interaksi stop input non-blocking
             stop_event = threading.Event()
             
             def wait_for_user_exit():
@@ -194,7 +189,6 @@ class JoinManager:
             input_thread.start()
             
             while not stop_event.is_set():
-                # Render ulang data secara bersih di baris konsol yang sama
                 self.print_kaeru_layout(kaeru_header, target_pkg, place_id, ram_info)
                 time.sleep(0.5)
                 
