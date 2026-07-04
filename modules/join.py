@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Dynamic Window Grid Lock (Termux Bypass Edition)
+DHub-Rejoin - True Kaeru Tools Integration Engine
 Author: Senior Python Developer
-Description: Mimics elite Termux orchestration scripts by dynamically locating 
-             the active Window stack tokens before locking bounds on Redfinger.
+Description: Hard-locked TUI status manager matching Kaeru framework standards, 
+             executing dynamic multi-window grid placements natively on Android 10+.
 """
 
 import time
@@ -24,8 +24,17 @@ class JoinManager:
         
         self.is_monitoring = False
         self.clone_statuses = {}
-        self.active_tasks = {} 
-
+        
+        # KAERU TOOLS CONFIGURATION MATRICES - OPTIMIZED FOR DPI 600 LANDSCAPE
+        self.grid_config = {
+            "start_x": 750,      # Sisi kiri bersih disisakan untuk monitoring Termux
+            "width": 380,        # Lebar proporsional jendela clone Roblox
+            "height": 260,       # Tinggi proporsional jendela clone Roblox
+            "cols": 3,           # Formasi maksimal 3 kolom kesamping
+            "gap": 10,           # Jeda spasi antar kotak (Garis pembatas rapi)
+            "margin_top": 80     # Batas atas aman dari status bar Redfinger
+        }
+        
         try:
             self.config_mgr.set_value("launch_delay", 20)
         except Exception:
@@ -58,69 +67,43 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def calculate_grid_bounds(self, index: int) -> str:
-        """Menghitung koordinat piksel landscape secara presisi di wilayah kanan layar DPI 600."""
-        row = index // 3
-        col = index % 3
-        
-        width = 370
-        height = 260
-        start_x_base = 740
-        top_margin = 70
-        
-        left = start_x_base + (col * (width + 15))
-        top = top_margin + (row * (height + 15))
-        right = left + width
-        bottom = top + height
-        
-        return f"{left} {top} {right} {bottom}"
-
-    def continuous_grid_lock_daemon(self):
+    def apply_kaeru_grid_position(self, pkg_name: str, index: int):
         """
-        [THE TERMUX BYPASS LOOP]
-        Melakukan penguncian posisi secara berkala (looping ketat) agar window dipaksa menetap 
-        di koordinat grid kanan, mematahkan usaha Redfinger yang ingin mengacak posisinya.
+        Mekanisme Utama Penataan Grid Kaeru Tools.
+        Menangkap Window token secara dinamis dan memaksa bounds berbaris simetris di sisi kanan.
         """
-        while self.is_monitoring:
-            for pkg_name, task_data in list(self.active_tasks.items()):
-                task_id = task_data["task_id"]
-                bounds = task_data["bounds"]
-                
-                if self.is_package_running(pkg_name):
-                    # Tembak langsung ke level dasar Activity Manager internal Android
-                    self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    self._execute_shell(f"am task resize {task_id} {bounds}")
-                    self._execute_shell(f"cmd window set-bounds {task_id} {bounds}")
-                else:
-                    if pkg_name in self.active_tasks:
-                        del self.active_tasks[pkg_name]
-            time.sleep(1.0) 
-
-    def resolve_and_register_task(self, pkg_name: str, index: int):
-        """Mencari Task ID aplikasi secara dinamis dari dumpsys window sistem Android."""
-        bounds_str = self.calculate_grid_bounds(index)
+        cfg = self.grid_config
+        row = index // cfg["cols"]
+        col = index % cfg["cols"]
         
-        # Polling intensif pasca peluncuran aplikasi
-        for _ in range(25):
+        left = cfg["start_x"] + (col * (cfg["width"] + cfg["gap"]))
+        top = cfg["margin_top"] + (row * (cfg["height"] + cfg["gap"]))
+        right = left + cfg["width"]
+        bottom = top + cfg["height"]
+        
+        bounds_str = f"{left} {top} {right} {bottom}"
+        
+        # Berikan jeda waktu agar window ter-render penuh di sistem grafis
+        time.sleep(4.0)
+        
+        # Ambil identitas Task ID unik milik package target
+        for _ in range(15):
             if not self.is_monitoring:
                 break
-            
-            # Cara KAERU: Mencari token jendela aktif melalui visual stack dumpsys
             task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord|Task' | grep {pkg_name} | head -n 1")
             if task_info:
                 try:
-                    # Ambil angka pertama yang ditemukan (Task ID Android)
                     task_id = [int(s) for s in task_info.split() if s.isdigit() and int(s) > 0][0]
                     
-                    # Daftarkan ke sistem pengunci posisi kontinu
-                    self.active_tasks[pkg_name] = {
-                        "task_id": task_id,
-                        "bounds": bounds_str
-                    }
+                    # Eksekusi bypass level kernel Android 10+ ala Kaeru Tools
+                    self._execute_shell(f"cmd activity set-resizable {task_id} true")
+                    self._execute_shell(f"am stack move-task {task_id} 5 true")
+                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
+                    self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
                     break
                 except Exception:
                     pass
-            time.sleep(0.4)
+            time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
         """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
@@ -134,18 +117,17 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
+        """Mengelola siklus peluncuran bertahap dengan penundaan 20 detik anti-crash."""
         total = len(clones)
         delay_cfg = 20
         
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
 
-        # Aktifkan daemon pengunci posisi kontinu (KAERU Method Engine)
-        threading.Thread(target=self.continuous_grid_lock_daemon, daemon=True).start()
-
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
+            # Eksekusi intent peluncuran terpadu
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
@@ -158,8 +140,8 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Cari Task ID secara dinamis dan kunci ke dalam grid kanan
-            threading.Thread(target=self.resolve_and_register_task, args=(pkg, idx), daemon=True).start()
+            # Pemicu penataan posisi grid asinkron (Mekanisme Kaeru Grid System)
+            threading.Thread(target=self.apply_kaeru_grid_position, args=(pkg, idx), daemon=True).start()
             
             # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
@@ -167,7 +149,7 @@ class JoinManager:
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully initialized loop engine for {total} instances.")
+        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Kaeru Grid Engine successfully orchestrated {total} targets.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
@@ -184,6 +166,7 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
+        # Logo Teks Besar DHUB
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
@@ -268,7 +251,6 @@ class JoinManager:
             curses.wrapper(curses_main)
         finally:
             self.is_monitoring = False
-            self.active_tasks.clear()
             
         os.system("clear")
         print("\033[93m[!] Proses monitoring disinkronkan. Kembali ke menu utama...\033[0m")
