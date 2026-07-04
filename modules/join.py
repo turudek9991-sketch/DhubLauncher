@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - App Cloner XML Grid Engine (Kaeru Method Replica)
+DHub-Rejoin - App Cloner XML Grid Engine (Local FS Fix)
 Author: Senior Python Developer
 Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
-             shared_preferences XML layout properties before issuing launch state intents.
+             shared_preferences XML layout properties using local Termux home directory buffers.
 """
 
 import time
@@ -27,7 +27,6 @@ class JoinManager:
         self.clone_statuses = {}
         
         # [KAERU MATRIX - DPI 600 OPTIMIZED]
-        # Koordinat dihitung kaku agar membagi sisi kanan secara simetris layaknya Kaeru Tools
         self.grid_config = {
             "start_x_base": 720,        # Menjauh dari area kiri (Termux aman dari tumpukan)
             "window_width": 420,        # Lebar proporsional jendela Roblox melayang
@@ -85,27 +84,26 @@ class JoinManager:
     def inject_coordinates_to_xml(self, pkg_name: str, coords: dict) -> bool:
         """
         [THE TRUE LAUNCHER REVOLUTION]:
-        Menyalin file preference XML ke direktori lokal Termux, memodifikasi tag koordinat 
-        App Cloner secara presisi, lalu mengembalikannya ke folder data root dengan hak akses penuh.
+        Modifikasi file preferensi XML App Cloner dengan aman memanfaatkan buffer home internal Termux 
+        untuk menghindari kendala error Read-only File System.
         """
         remote_xml_path = f"/data/user/0/{pkg_name}/shared_prefs/{pkg_name}_preferences.xml"
-        local_temp_path = f"/tmp/{pkg_name}_prefs.xml"
         
-        # 1. Pastikan folder /tmp lokal Termux tersedia
-        os.makedirs("/tmp", exist_ok=True)
+        # [FIXED DIRECTORY]: Menggunakan direktori home Termux asli agar kebal error sistem file read-only
+        local_home = "/data/data/com.termux/files/home"
+        local_temp_path = f"{local_home}/{pkg_name}_prefs.xml"
         
-        # 2. Tarik file XML preferences milik aplikasi clone target dari folder root ke lokal Termux
+        # Ambil file XML asli dari folder data internal Android ke lokal Termux
         self._execute_shell(f"cp {remote_xml_path} {local_temp_path}")
         self._execute_shell(f"chmod 777 {local_temp_path}")
         
         if not os.path.exists(local_temp_path) or os.path.getsize(local_temp_path) == 0:
-            return False # Fallback jika file preferensi belum terinisialisasi oleh App Cloner
+            return False
             
         try:
             tree = ET.parse(local_temp_path)
             root = tree.getroot()
             
-            # Map target key XML preferensi penataan posisi milik App Cloner
             target_keys = {
                 "app_cloner_current_window_left": str(coords["left"]),
                 "app_cloner_current_window_top": str(coords["top"]),
@@ -113,29 +111,23 @@ class JoinManager:
                 "app_cloner_current_window_bottom": str(coords["bottom"])
             }
             
-            # Perbarui nilai int yang sudah ada atau buat baru jika belum terdaftar
-            elements_updated = 0
             for key, value in target_keys.items():
                 found = False
                 for elem in root.findall("int"):
                     if elem.get("name") == key:
                         elem.set("value", value)
                         found = True
-                        elements_updated += 1
                         break
                 if not found:
-                    new_elem = ET.SubElement(root, "int", name=key, value=value)
-                    elements_updated += 1
+                    ET.SubElement(root, "int", name=key, value=value)
                     
-            # Simpan modifikasi XML secara lokal di Termux
+            # Simpan secara lokal di home Termux
             tree.write(local_temp_path, encoding="utf-8", xml_declaration=True)
             
-            # 3. Kembalikan file XML yang sudah dimodifikasi ke direktori root data Android
+            # Kembalikan file hasil edit ke root sistem Android
             self._execute_shell(f"cp {local_temp_path} {remote_xml_path}")
-            # Setel kepemilikan owner & permission kaku (chown) agar Android mau membacanya saat startup
             self._execute_shell(f"chmod 660 {remote_xml_path}")
             
-            # Hapus file sampah lokal Termux
             if os.path.exists(local_temp_path):
                 os.remove(local_temp_path)
                 
@@ -165,16 +157,13 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # 1. Pastikan aplikasi target dimatikan paksa (Force Stop) agar state memori bersih 
-            # dan App Cloner wajib membaca ulang file XML saat inisialisasi awal
+            # Force Stop dulu agar App Cloner terpaksa membaca ulang XML baru pada fase startup
             self._execute_shell(f"am force-stop {pkg}")
             time.sleep(0.5)
             
-            # 2. Hitung posisi grid Kaeru dan suntikkan langsung ke dalam file preferences.xml
             coords = self.calculate_xml_coordinates(idx)
             self.inject_coordinates_to_xml(pkg, coords)
             
-            # 3. Tembakkan intent untuk meluncurkan Roblox clone
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
@@ -187,10 +176,8 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Jeda 20 detik penuh antar device peluncuran agar aman bebas dari crash memori
             if idx < total - 1:
                 time.sleep(delay_cfg)
 
@@ -269,12 +256,11 @@ class JoinManager:
         
         if not installed_clones:
             os.system("clear")
-            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox Clone terdeteksi di perangkat.\033[0m")
+            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox Clone terdeteksi.\033[0m")
             return
 
         self.is_monitoring = True
 
-        # Luncurkan background orchestrator thread
         threading.Thread(
             target=self.launch_all_instances,
             args=(installed_clones, place_id),
