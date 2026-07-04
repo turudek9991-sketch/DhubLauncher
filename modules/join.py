@@ -1,13 +1,13 @@
 """
-DHub-Rejoin - Ultra Stability KAERU Visual Engine (Pure Text Layout - Anti-Shatter)
+DHub-Rejoin - Absolute Shield KAERU Visual Engine (Hard Clear System - Zero Shatter)
 Author: Senior Python Developer
-Description: Uses pure string formatting instead of rich.table to completely prevent layout breakdown when app goes to background.
+Description: Uses absolute shell terminal clearing to prevent rendering artifacts on Android emulators.
 """
 
 import time
 import subprocess
 import threading
-import sys
+import os
 from rich.console import Console
 
 console = Console()
@@ -97,17 +97,16 @@ class JoinManager:
                 process.terminate()
 
     def print_kaeru_layout(self, kaeru_header: str, target_pkg: str, place_id: str, ram_info: str):
-        """Mencetak layout KAERU menggunakan struktur teks kaku tanpa library tabel (Anti-Hancur)."""
-        # Kembalikan posisi kursor ke baris paling atas (0,0) secara instan
-        sys.stdout.write("\033[H")
-        sys.stdout.flush()
+        """Memaksa pembersihan layar total tingkat OS sebelum merender tabel (Anti-Luber)."""
+        # [SOLUSI MUTLAK]: Gunakan perintah clear sistem untuk menghapus total buffer lama terminal
+        os.system("clear")
         
         # Cetak logo teks besar DHUB
         console.print(kaeru_header)
         
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
         
-        # Penentuan status warna murni teks
+        # Penentuan status warna teks
         if self.engine_status == "Online":
             status_display = "[bold green]Online[/bold green]"
         elif self.engine_status == "Launched":
@@ -117,8 +116,12 @@ class JoinManager:
         else:
             status_display = f"[bold magenta]{self.engine_status}[/bold magenta]"
 
-        # KONSTRUKSI STRUKTUR TABEL MURNI TEKS (Kaku, Presisi, Mengunci Batas Kolom)
-        # Lebar judul dikunci menggunakan format spasi manual agar tidak terpengaruh penyusutan layar terminal
+        # Pemotongan nama package secara aman jika terlalu panjang agar tidak merusak border kanan
+        display_pkg = target_pkg
+        if len(display_pkg) > 38:
+            display_pkg = display_pkg[:35] + "..."
+
+        # Rangkaian string layout statis presisi tinggi
         lines = [
             "[cyan]┌──────────────────────────────────────────┬────────────────────────┐[/cyan]",
             "[cyan]│[/cyan] [bold white]PACKAGE[/bold white]                                   [cyan]│[/cyan] [bold cyan]STATUS[/bold cyan]                 [cyan]│[/cyan]",
@@ -126,18 +129,17 @@ class JoinManager:
             f"[cyan]│[/cyan] System Memory                             [cyan]│[/cyan] Free: {ram_info:<17} [cyan]│[/cyan]",
             f"[cyan]│[/cyan] Launch Delay                              [cyan]│[/cyan] {str(delay_cfg)+'s...':<17} [cyan]│[/cyan]",
             "[cyan]├──────────────────────────────────────────┼────────────────────────┤[/cyan]",
-            f"[cyan]│[/cyan] {target_pkg:<40} [cyan]│[/cyan] {status_display:<26} [cyan]│[/cyan]",
+            f"[cyan]│[/cyan] {display_pkg:<40} [cyan]│[/cyan] {status_display:<26} [cyan]│[/cyan]",
             "[cyan]└──────────────────────────────────────────┴────────────────────────┘[/cyan]"
         ]
         
-        # Cetak seluruh susunan teks kaku ke terminal
         for line in lines:
             console.print(line)
             
         console.print("\n[dim white]» Tekan Enter Kapan Saja Untuk Berhenti Pemantauan Core Engine...[/dim white]")
 
     def launch_app(self):
-        """Siklus pemantauan dengan isolasi screen buffer penuh."""
+        """Siklus utama dengan eksekusi render statis eksternal."""
         kaeru_header = (
             "[bold cyan]██████╗ ██╗  ██╗██╗   ██╗██████╗ \n"
             "██╔══██╗██║  ██║██║   ██║██╔══██╗\n"
@@ -164,10 +166,6 @@ class JoinManager:
             if self.monitor_thread:
                 self.monitor_thread.join(timeout=1)
 
-        # AKTIFKAN ALTERNATE SCREEN BUFFER & SEMBUNYIKAN KURSOR
-        sys.stdout.write("\033[?1049h\033[?25l")
-        sys.stdout.flush()
-
         self.is_monitoring = True
         self.engine_status = "Ready"
         
@@ -188,17 +186,13 @@ class JoinManager:
             input_thread = threading.Thread(target=wait_for_user_exit, daemon=True)
             input_thread.start()
             
-            console.clear()
-            
             while not stop_event.is_set():
                 self.print_kaeru_layout(kaeru_header, target_pkg, place_id, ram_info)
-                time.sleep(0.5)
+                # Jeda refresh disesuaikan menjadi 0.7 detik agar layar Redfinger memiliki waktu sinkronisasi buffer
+                time.sleep(0.7)
                 
         finally:
             self.is_monitoring = False
-            # MATIKAN ALTERNATE SCREEN BUFFER & TAMPILKAN KURSOR KEMBALI
-            sys.stdout.write("\033[?25h\033[?1049l")
-            sys.stdout.flush()
             
         console.clear()
         console.print("[bold yellow][!] Pengawasan dinonaktifkan. Kembali ke panel utama...[/bold yellow]")
