@@ -38,10 +38,10 @@ class JoinManager:
         }
         
         try:
-            self.config_mgr.set_value("launch_delay", 20)
+            self.config_mgr.set_value("launch_delay", 5)
         except Exception:
             if hasattr(self.config_mgr, 'config_data'):
-                self.config_mgr.config_data["launch_delay"] = 20
+                self.config_mgr.config_data["launch_delay"] = 5
 
     def _execute_shell(self, command: str) -> str:
         """Eksekusi perintah internal dengan hak akses superuser root."""
@@ -141,7 +141,7 @@ class JoinManager:
     def launch_all_instances(self, clones: list, place_id: str):
         """Siklus utama orkestrasi mutakhir berbasis modifikasi XML injector."""
         total = len(clones)
-        delay_cfg = 20
+        delay_cfg = 5
         
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
@@ -207,10 +207,10 @@ class JoinManager:
         stdscr.addstr(10, 45, f"Free: {ram_info}", white)
         
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
-        stdscr.addstr(11, 45, "20s (Locked)", white)
+        stdscr.addstr(11, 45, "5s (Locked)", white)
         
-        stdscr.addstr(12, 0, "│ Duration                                 │                        │", cyan)
-        stdscr.addstr(12, 45, "Lifetime", white)
+        stdscr.addstr(12, 0, "│ Engine Mode                              │                        │", cyan)
+        stdscr.addstr(12, 45, "AppCloner XML Grid Injection", white)
         
         stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
