@@ -118,7 +118,7 @@ class JoinManager:
         
         return {"left": left, "top": top, "right": right, "bottom": bottom}
 
-    def inject_coordinates_to_xml((self, pkg_name: str, coords: dict) -> bool:
+    def inject_coordinates_to_xml(self, pkg_name: str, coords: dict) -> bool:
         """Modifikasi file preferensi XML App Cloner dengan memanfaatkan buffer home internal Termux."""
         remote_xml_path = f"/data/user/0/{pkg_name}/shared_prefs/{pkg_name}_preferences.xml"
         local_home = "/data/data/com.termux/files/home"
