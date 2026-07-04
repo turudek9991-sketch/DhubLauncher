@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-DHub Launcher - Main Entry Point
+DHub Launcher - Main Entry Point (Fixed Loop)
 Author: Senior Python Developer
 Version: 1.0.0
-Description: Main script to initialize and run the Termux-based Android launcher.
+Description: Main script to initialize and run the Termux-based Android launcher without auto-trigger bugs.
 """
 
 import os
@@ -16,17 +16,13 @@ from modules.banner import show_banner
 def initialize_project():
     """
     Memastikan semua direktori yang dibutuhkan tersedia dan menginisialisasi modul utama.
-    Mengembalikan instance ConfigManager dan AppLogger.
     """
-    # 1. Buat folder logs jika belum ada
     if not os.path.exists("logs"):
         os.makedirs("logs")
         
-    # 2. Inisialisasi Logger
     logger = AppLogger()
     logger.info("Application Started")
     
-    # 3. Inisialisasi & Muat Konfigurasi
     config_mgr = ConfigManager(logger)
     config_mgr.load_config()
     
@@ -43,17 +39,16 @@ def main():
         # Instance MainMenu untuk mengelola navigasi
         menu = MainMenu(config_mgr, logger)
         
-        # Loop Utama Aplikasi
+        # LOOP UTAMA: Hanya jalankan apa yang dipilih oleh user!
         while True:
-            # Tampilkan Banner Utama dan Info Package
+            # Tampilkan Banner Utama
             show_banner(config_mgr)
             
             # Tampilkan Menu Interaktif dan Dapatkan Pilihan User
             choice = menu.display_main_menu()
             
-            # Eksekusi Pilihan
+            # Eksekusi Pilihan secara ketat
             if not menu.execute_choice(choice):
-                # Jika execute_choice mengembalikan False, artinya user memilih Exit
                 logger.info("Application Stopped by User")
                 break
                 
