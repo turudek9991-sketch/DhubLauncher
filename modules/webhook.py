@@ -1,5 +1,5 @@
 """
-DHub-Rejoin - Discord Webhook Integration Module
+DHub-Rejoin - Discord Webhook Integration Module (Fix Post Payload)
 Author: Senior Python Developer
 Description: Dispatches structured diagnostic and status reports using Discord Embeds.
 """
@@ -8,7 +8,6 @@ import datetime
 import requests
 from rich.console import Console
 
-# Import ArrangeManager untuk menyuplai spesifikasi perangkat secara real-time
 from modules.arrange import ArrangeManager
 
 console = Console()
@@ -24,30 +23,25 @@ class WebhookManager:
 
     def send_status_embed(self, status: str = "SUCCESS", action_detail: str = "Manual Webhook Test Triggered") -> bool:
         """
-        Membentuk format objek Discord Embed dan mengirimkannya ke URL Webhook yang disimpan di config.
+        Membentuk format objek Discord Embed dan mengirimkannya ke URL Webhook.
         """
         url = self.config_mgr.config_data.get("discord_webhook", "")
         
-        if not url:
-            self.logger.warning("Discord Webhook URL is empty in config.json. Skipping transmission.")
-            console.print("[yellow][!] Peringatan: URL Discord Webhook belum diatur di menu Settings.[/yellow]")
+        if not url or not url.startswith("http"):
+            self.logger.warning("Discord Webhook URL is empty or invalid in config.json.")
+            console.print("[yellow][!] Peringatan: URL Discord Webhook belum diatur dengan benar di menu Settings.[/yellow]")
             return False
 
-        # Ambil data spesifikasi perangkat saat ini untuk dilampirkan ke Embed
         device_info = self.arrange_mgr.fetch_device_data()
         target_app = self.config_mgr.config_data.get("package", "None Selected")
+        embed_color = 3066993 if "SUCCESS" in status else 15158332
         
-        # Penentuan warna border embed (Hijau untuk Success, Merah untuk Failed)
-        embed_color = 3066993 if "SUCCESS" in status else 15158332 # Decimal color codes
-        
-        # Konstruksi Payload JSON sesuai struktur Discord Webhook API
         payload = {
             "username": "DHub-Rejoin Bot",
-            "avatar_url": "https://i.imgur.com/4M34hi2.png",
             "embeds": [
                 {
                     "title": "DHub-Rejoin Operational Report",
-                    "description": f"Aktivitas pemicu peluncuran aplikasi pada lingkungan Termux.",
+                    "description": "Aktivitas pemicu peluncuran aplikasi pada lingkungan Termux.",
                     "color": embed_color,
                     "fields": [
                         {"name": "Application Target", "value": f"`{target_app}`", "inline": True},
@@ -58,18 +52,18 @@ class WebhookManager:
                         {"name": "Device Hardware", "value": f"{device_info['brand']} {device_info['device']}", "inline": True},
                         {"name": "RAM Capacity", "value": device_info["ram"], "inline": True},
                         {"name": "CPU Architecture", "value": device_info["cpu"], "inline": True},
-                        {"name": "Execution Time (WIB)", "value": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "inline": False}
+                        {"name": "Execution Time", "value": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "inline": False}
                     ],
                     "footer": {
-                        "text": "DHub Open-Source Engine Core",
-                        "icon_url": "https://i.imgur.com/4M34hi2.png"
+                        "text": "DHub Open-Source Engine Core"
                     }
                 }
             ]
         }
 
         try:
-            response = requests.post(payload=None, json=payload, headers={"Content-Type": "application/json"}, url=url, timeout=10)
+            # Perbaikan: Mengirim data JSON secara eksplisit menggunakan argumen json=payload
+            response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
             if response.status_code in [200, 204]:
                 console.print("[bold green][+] Berhasil mengirim status embed ke Discord Webhook![/bold green]")
                 self.logger.info(f"Discord report pushed successfully. Status: {status}")
@@ -79,7 +73,6 @@ class WebhookManager:
                 console.print(f"[bold red][!] Gagal: Server Discord merespon dengan kode {response.status_code}[/bold red]")
                 return False
         except Exception as e:
-            # Jika koneksi gagal total atau error transmisi lainnya, catat status FAILED
             self.logger.error(f"Status FAILED - Discord Webhook connection exception: {e}")
             console.print("[bold red][!] Status: FAILED. Tidak dapat terhubung ke server Discord API.[/bold red]")
             return False
