@@ -209,7 +209,7 @@ class JoinManager:
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
         stdscr.addstr(11, 45, "20s (Locked)", white)
         
-        stdscr.addstr(12, 0, "│ Duration                              │                        │", cyan)
+        stdscr.addstr(12, 0, "│ Duration                                 │                        │", cyan)
         stdscr.addstr(12, 45, "Lifetime", white)
         
         stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
