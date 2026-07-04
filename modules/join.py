@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - App Cloner XML Grid Engine (Dynamic Settings Config Edition)
+DHub-Rejoin - Ultimate Automated Multi-Target Engine
 Author: Senior Python Developer
-Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
-             shared_preferences XML layout properties using dynamically loaded sizes from config.
+Description: Integrates dynamic layout settings directly into the config flow 
+             and prints all running Roblox clone packages dynamically.
 """
 
 import time
@@ -26,29 +26,37 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [INTEGRASI CONFIG LAYOUT DINAMIS]
-        # Mengambil dari setting config aplikasi, jika belum diatur otomatis pakai default super compact yang pas kemarin
-        try:
-            # Membaca nilai dari config, jika tidak ada fallback ke default imut kita
-            self.start_x_base = self.config_mgr.config_data.get("grid_start_x", 660)
-            self.window_width = self.config_mgr.config_data.get("grid_width", 280)
-            self.window_height = self.config_mgr.config_data.get("grid_height", 200)
-            self.columns = self.config_mgr.config_data.get("grid_columns", 2)
-            self.top_margin = self.config_mgr.config_data.get("grid_top_margin", 60)
-            self.gap = self.config_mgr.config_data.get("grid_gap", 5)
-            
-            # Kunci delay default mutlak di angka aman 20 detik
-            self.config_mgr.set_value("launch_delay", 20)
-        except Exception:
-            # Fallback memori jika objek config manager belum sepenuhnya terinisialisasi
-            if hasattr(self.config_mgr, 'config_data'):
-                self.config_mgr.config_data["launch_delay"] = 20
-            self.start_x_base = 660
-            self.window_width = 280
-            self.window_height = 200
-            self.columns = 2
-            self.top_margin = 60
-            self.gap = 5
+        # [INISIALISASI AUTOMATIC CONFIG SAVE & FALLBACK]
+        # Jika nilai belum ada di config.json bawaan, skrip otomatis menyuntikkan nilai default super compact
+        self._ensure_config_values()
+
+    def _ensure_config_values(self):
+        """Memastikan semua parameter grid tersimpan otomatis di data konfigurasi utama."""
+        defaults = {
+            "grid_start_x": 660,
+            "grid_width": 280,
+            "grid_height": 200,
+            "grid_columns": 2,
+            "grid_top_margin": 60,
+            "grid_gap": 5,
+            "launch_delay": 20
+        }
+        
+        updated = False
+        for key, val in defaults.items():
+            if key not in self.config_mgr.config_data:
+                self.config_mgr.config_data[key] = val
+                updated = True
+                
+        # Jika aplikasi mendukung fungsi save/set_value, pancing autosave permanen ke config.json
+        if updated:
+            try:
+                if hasattr(self.config_mgr, 'save_config'):
+                    self.config_mgr.save_config()
+                elif hasattr(self.config_mgr, 'save'):
+                    self.config_mgr.save()
+            except Exception:
+                pass
 
     def _execute_shell(self, command: str) -> str:
         """Eksekusi perintah internal dengan hak akses superuser root."""
@@ -76,19 +84,41 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def calculate_xml_coordinates(self, index: int) -> dict:
-        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi dinamis."""
-        row = index // self.columns
-        col = index % self.columns
+    def get_all_active_targets_string(self) -> str:
+        """
+        [MULTI-TARGET RESOLVER]:
+        Memindai seluruh package Roblox yang terdeteksi aktif berjalan di memori Redfinger 
+        dan menggabungkannya menjadi untaian string dinamis (Bypass Kuncian Tunggal).
+        """
+        all_clones = self.get_all_roblox_clones()
+        active_running = [pkg for pkg in all_clones if self.is_package_running(pkg)]
         
-        left = self.start_x_base + (col * (self.window_width + self.gap))
-        top = self.top_margin + (row * (self.window_height + self.gap))
-        right = left + self.window_width
-        bottom = top + self.window_height
+        if not active_running:
+            return "None (All Offline)"
+        return ", ".join(active_running)
+
+    def calculate_xml_coordinates(self, index: int) -> dict:
+        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi dinamis JSON."""
+        c = self.config_mgr.config_data
+        
+        columns = c.get("grid_columns", 2)
+        start_x = c.get("grid_start_x", 660)
+        width = c.get("grid_width", 280)
+        height = c.get("grid_height", 200)
+        gap = c.get("grid_gap", 5)
+        top_margin = c.get("grid_top_margin", 60)
+        
+        row = index // columns
+        col = index % columns
+        
+        left = start_x + (col * (width + gap))
+        top = top_margin + (row * (height + gap))
+        right = left + width
+        bottom = top + height
         
         return {"left": left, "top": top, "right": right, "bottom": bottom}
 
-    def inject_coordinates_to_xml(self, pkg_name: str, coords: dict) -> bool:
+    def inject_coordinates_to_xml((self, pkg_name: str, coords: dict) -> bool:
         """Modifikasi file preferensi XML App Cloner dengan memanfaatkan buffer home internal Termux."""
         remote_xml_path = f"/data/user/0/{pkg_name}/shared_prefs/{pkg_name}_preferences.xml"
         local_home = "/data/data/com.termux/files/home"
@@ -147,7 +177,7 @@ class JoinManager:
     def launch_all_instances(self, clones: list, place_id: str):
         """Siklus utama orkestrasi mutakhir berbasis modifikasi XML injector."""
         total = len(clones)
-        delay_cfg = 20
+        delay_cfg = self.config_mgr.config_data.get("launch_delay", 20)
         
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
@@ -193,13 +223,20 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
+        # Ambil nilai ukuran grid aktif dari konfigurasi secara real-time
+        c_width = self.config_mgr.config_data.get("grid_width", 280)
+        c_height = self.config_mgr.config_data.get("grid_height", 200)
+        
+        # Ambil untaian semua package aktif yang berhasil dibaca sistem secara masal
+        running_targets = self.get_all_active_targets_string()
+        
         # Logo Teks Besar DHUB
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, f"╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   v4.5 - Size: {self.window_width}x{self.window_height}", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, f"╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   v4.6 - Size: {c_width}x{c_height}", cyan | curses.A_BOLD)
         
         # Bingkai Tabel Estetis KAERU
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
@@ -208,15 +245,16 @@ class JoinManager:
         stdscr.addstr(8, 45, "STATUS", cyan | curses.A_BOLD)
         stdscr.addstr(9, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
-        # Informasi Konfigurasi Engine
+        # Informasi Konfigurasi Engine & Alokasi Target Dinamis
         stdscr.addstr(10, 0, "│ System Memory                            │                        │", cyan)
         stdscr.addstr(10, 45, f"Free: {ram_info}", white)
         
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
         stdscr.addstr(11, 45, "20s (Locked)", white)
         
-        stdscr.addstr(12, 0, "│ Engine Mode                              │                        │", cyan)
-        stdscr.addstr(12, 45, "AppCloner XML Grid Injection", white)
+        stdscr.addstr(12, 0, "│ Target Active (All Running Clones)       │                        │", cyan)
+        # Menampilkan potongan daftar aplikasi aktif secara aman agar tidak meluber dari kolom TUI
+        stdscr.addstr(12, 45, running_targets[:23] + "..." if len(running_targets) > 23 else running_targets, white | curses.A_BOLD)
         
         stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
