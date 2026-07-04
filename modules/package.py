@@ -1,14 +1,13 @@
 """
-DHub-Rejoin - Package Manager Module (Optimized & Bug Free)
+DHub-Rejoin - Package Manager Module (Instant Auto-Save)
 Author: Senior Python Developer
-Description: Scans and filters Android app packages explicitly targeting Roblox and its cloned variations.
+Description: Scans Android app packages for Roblox/Clones and instantly saves the target to config without user prompt.
 """
 
 import os
 import subprocess
 from rich.console import Console
 from rich.table import Table
-from rich.prompt import Prompt
 from rich.panel import Panel
 
 console = Console()
@@ -60,7 +59,6 @@ class PackageManager:
         # Jalur simulasi fallback jika di lingkungan non-Android atau kosong
         if not raw_output:
             return [
-                {"name": "com.roblox.client", "version": "2.615.637", "status": "Original App"},
                 {"name": "com.roblox.seiyv", "version": "Unknown", "status": "Clone Detected"}
             ]
 
@@ -90,10 +88,10 @@ class PackageManager:
 
     def manage_packages(self):
         """
-        Fungsi utama menu Package Manager untuk berinteraksi dengan pengguna.
+        Fungsi utama menu Package Manager - Otomatis mendeteksi dan langsung menyimpan ke config.
         """
         console.clear()
-        console.print(Panel("[bold green]ROBLOX & CLONE PACKAGE MANAGER[/bold green]", border_style="green"))
+        console.print(Panel("[bold green]AUTOMATIC ROBLOX DETECTOR & AUTO-SAVE[/bold green]", border_style="green"))
         
         packages = self.scan_installed_packages()
         
@@ -101,8 +99,8 @@ class PackageManager:
             console.print("[bold red][!] Tidak ada package berunsur 'roblox' terdeteksi di perangkat ini.[/bold red]")
             return
 
-        # Konstruksi tabel visual menggunakan Rich
-        table = Table(title="Daftar Target Roblox & Kloning Aktif", header_style="bold magenta")
+        # Konstruksi tabel visual untuk konfirmasi kepada pengguna aplikasi apa saja yang diamankan
+        table = Table(title="Daftar Target Terdeteksi & Disimpan", header_style="bold magenta")
         table.add_column("No", justify="center", style="cyan")
         table.add_column("Nama Package Aplikasi", justify="left", style="white")
         table.add_column("Versi", justify="center", style="green")
@@ -112,25 +110,21 @@ class PackageManager:
             table.add_row(str(idx), pkg["name"], pkg["version"], pkg["status"])
             
         console.print(table)
+        console.print(f"\n[bold]Total Terdeteksi:[/bold] {len(packages)} Package Varian Roblox")
         
-        # PERBAIKAN BUG TAG DI SINI (Memperbaiki error closing tag rich)
-        console.print(f"\n[bold]Total Terdeteksi:[/bold] {len(packages)} Package Varian Roblox\n")
+        # [PROSES AUTO SAVE INSTAN]
+        # Mengambil package pertama yang ditemukan (sangat cocok untuk single clone terfokus di instance tersebut)
+        selected_pkg = packages[0]["name"]
         
-        choice = Prompt.ask(
-            "[bold yellow]Pilih Nomor Package untuk disimpan ke Config (atau ketik '0' untuk batal)[/bold yellow]",
-            default="0"
-        )
+        # Jika clone lebih dari satu dan Anda ingin menyimpan semuanya sekaligus dipisahkan koma, 
+        # Anda bisa menggunakan baris ini: selected_pkg = ",".join([p["name"] for p in packages])
         
-        if choice.isdigit():
-            idx_choice = int(choice)
-            if 1 <= idx_choice <= len(packages):
-                selected_pkg = packages[idx_choice - 1]["name"]
-                
-                self.config_mgr.set_value("package", selected_pkg)
-                self.logger.info(f"Package target switched to: {selected_pkg}")
-                
-                console.print(f"\n[bold green][+] Berhasil mengunci target [yellow]{selected_pkg}[/yellow] ke konfigurasi utama![/bold green]")
-            else:
-                console.print("\n[bold red][!] Opsi diluar jangkauan indeks daftar paket.[/bold red]")
-        else:
-            console.print("\n[bold red][!] Input dibatalkan, format masukan harus berupa angka numerik.[/bold red]")
+        # Tulis langsung data ke config global tanpa bertanya
+        self.config_mgr.set_value("package", selected_pkg)
+        self.logger.info(f"Auto-saved package target onto config: {selected_pkg}")
+        
+        console.print(Panel(
+            f"[bold green][+] SUKSES AUTO-SAVE![/bold green]\n"
+            f"Target [yellow]{selected_pkg}[/yellow] telah berhasil dikunci secara otomatis ke pengaturan Anda.", 
+            border_style="green"
+        ))
