@@ -26,7 +26,7 @@ class MainMenu:
         self.config_mgr = config_mgr
         self.logger = logger
         
-        # Inisialisasi sub-modul aman
+        # Inisialisasi sub-modul aman tanpa memicu fungsi internal
         self.package_mgr = PackageManager(config_mgr, logger)
         self.settings_mgr = SettingsManager(config_mgr, logger)
         self.join_mgr = JoinManager(config_mgr, logger)
@@ -34,27 +34,6 @@ class MainMenu:
         self.optimize_mgr = OptimizeManager(config_mgr, logger)
         self.webhook_mgr = WebhookManager(config_mgr, logger)
         self.utils_mgr = UtilsManager(config_mgr, logger)
-
-    def edit_grid_settings(self):
-        """
-        Fungsi untuk mengubah konfigurasi grid secara dinamis.
-        """
-        console.print("[bold cyan]--- PENGATURAN GRID ---[/bold cyan]")
-        c = self.config_mgr.config_data
-        
-        # Input dengan default nilai yang sudah ada di config
-        c["grid_width"] = int(Prompt.ask(f"Lebar Window", default=str(c.get("grid_width", 280))))
-        c["grid_height"] = int(Prompt.ask(f"Tinggi Window", default=str(c.get("grid_height", 200))))
-        c["grid_start_x"] = int(Prompt.ask(f"Grid Start X", default=str(c.get("grid_start_x", 660))))
-        
-        # Save otomatis ke file config.json
-        if hasattr(self.config_mgr, 'save_config'): 
-            self.config_mgr.save_config()
-        elif hasattr(self.config_mgr, 'save'):
-            self.config_mgr.save()
-            
-        console.print("[bold green][!] Pengaturan Grid Tersimpan![/bold green]")
-        time.sleep(1)
 
     def display_main_menu(self) -> str:
         """
@@ -65,7 +44,7 @@ class MainMenu:
             "[bold cyan][02][/bold cyan] Scan & Auto-Save Package\n"
             "[bold cyan][03][/bold cyan] Optimize Storage (Clear Cache)\n"
             "[bold cyan][04][/bold cyan] Device Information Report\n"
-            "[bold cyan][05][/bold cyan] Settings Configuration & Grid\n"
+            "[bold cyan][05][/bold cyan] Settings Configuration\n"
             "[bold cyan][06][/bold cyan] Discord Webhook Connectivity Test\n"
             "[bold cyan][07][/bold cyan] View System Logs Stream\n"
             "[bold cyan][08][/bold cyan] Exit Core Engine"
@@ -82,7 +61,7 @@ class MainMenu:
 
     def execute_choice(self, choice: str) -> bool:
         """
-        Mengeksekusi fungsi HANYA ketika angka menu dipilih.
+        Mengeksekusi fungsi HANYA ketika angka menu dipilih oleh user secara ketat.
         """
         if choice == "1":
             self.logger.info("Executing: Launch Application")
@@ -98,8 +77,7 @@ class MainMenu:
             self.arrange_mgr.display_device_info()
         elif choice == "5":
             self.logger.info("Executing: Settings Submenu")
-            # Routing ke fungsi edit grid atau menu settings
-            self.edit_grid_settings()
+            self.settings_mgr.open_settings()
         elif choice == "6":
             self.logger.info("Executing: Discord Test")
             self.webhook_mgr.test_webhook()
@@ -110,10 +88,10 @@ class MainMenu:
             console.print("\n[bold red][!] Shutdown Core Engine. Bye![/bold red]")
             return False
             
-        # Bersihkan buffer input agar tidak ada input enter gaib
+        # PENCEGAHAN MENTAL: Bersihkan buffer input sebelum menahan layar
         if choice != "8":
             try:
-                sys.stdin.flush()
+                sys.stdin.flush() # Flush sisa enter gaib di Termux
             except Exception:
                 pass
             print("\n")
