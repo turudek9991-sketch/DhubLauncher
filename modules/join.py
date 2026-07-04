@@ -1,5 +1,5 @@
 """
-DHub-Rejoin - Automated Multi-Window Grid Orchestrator (DPI 600 Optimized)
+DHub-Rejoin - Automated Multi-Window Grid Orchestrator (Import Fixed)
 Author: Senior Python Developer
 Description: Dispatches multiple clone targets and automatically tiles them into a perfect 
              right-aligned grid mapping via low-level Android Activity Manager stacks.
@@ -9,6 +9,7 @@ import time
 import subprocess
 import os
 import curses
+import threading  # <-- Perbaikan Bug: Modul threading sekarang sudah didefinisikan!
 
 class JoinManager:
     def __init__(self, config_mgr, logger):
@@ -43,21 +44,16 @@ class JoinManager:
                 pkg = line.replace("package:", "").strip()
                 if "roblox" in pkg.lower():
                     clones.append(pkg)
-        # Urutkan nama package agar penataan window berurutan dari clone 1, 2, dst.
         return sorted(clones)
 
     def arrange_window_grid(self, pkg_name: str, index: int):
         """
         Logika Utama Pengatur Grid Sisi Kanan (DPI 600 Optimized).
-        Menggunakan perintah Android Window Manager untuk memaksa clone Roblox masuk ke mode split/freeform.
+        Menggunakan perintah Android Window Manager untuk memaksa clone Roblox masuk ke koordinat grid kanan.
         """
-        # Menghitung koordinat bounding box berdasarkan indeks aplikasi (Membentuk Grid di Sisi Kanan)
-        # Dimensi disesuaikan secara dinamis agar presisi layaknya screenshot target
         row = index // 3
         col = index % 3
         
-        # Penentuan koordinat X dan Y pada layar landscape DPI 600
-        # Menggeser baseline X ke sisi kanan (menyisakan sisi kiri untuk Termux)
         width = 400
         height = 300
         start_x = 700 + (col * 420)
@@ -65,15 +61,12 @@ class JoinManager:
         
         bounds_str = f"{start_x} {start_y} {start_x + width} {start_y + height}"
         
-        # Ambil Task ID dari package yang baru saja dibuka
         time.sleep(1.2)
         task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord' | grep {pkg_name} | head -n 1")
         
         if task_info:
             try:
-                # Ekstrak nomor Task ID Android
                 task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
-                # Paksa window bergerak ke koordinat grid kanan menggunakan akses root am
                 self._execute_shell(f"am task resize {task_id} {bounds_str}")
             except Exception:
                 pass
@@ -84,15 +77,12 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.engine_status = f"Launching {idx+1}/{total}"
             
-            # Tembakkan intent deep-link menuju target game
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
             else:
                 cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
             
             self._execute_shell(cmd)
-            
-            # Atur posisi jendela clone secara instan ke sisi kanan grid
             self.arrange_window_grid(pkg, idx)
             time.sleep(0.5)
             
@@ -115,7 +105,6 @@ class JoinManager:
         yellow = curses.color_pair(4) | curses.A_BOLD
 
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 20)
-        place_id = self.config_mgr.config_data.get("place_id", "95206881")
         
         # Gambar Logo Raksasa DHUB
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
@@ -143,7 +132,7 @@ class JoinManager:
         
         # Tampilkan Seluruh Daftar Instance Yang Berhasil Dikunci Ke Grid Kanan
         current_row = 13
-        for idx, pkg in enumerate(clones[:6]): # Batasi tampilan visual maksimal 6 baris utama di CLI Termux
+        for idx, pkg in enumerate(clones[:6]):
             stdscr.addstr(current_row, 0, "│                                          │                        │", cyan)
             display_name = pkg[:38]
             stdscr.addstr(current_row, 2, display_name, white)
@@ -161,14 +150,12 @@ class JoinManager:
 
     def launch_app(self):
         """Eksekusi taktis otomasi multi-window grid."""
-        # Force default delay ke angka stabil aman 20 detik untuk mengamankan CPU emulator
         self.config_mgr.set_value("launch_delay", 20)
         
         place_id = self.config_mgr.config_data.get("place_id", "")
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
 
-        # Pindai secara real-time seluruh varian akun clone Roblox yang ada di Redfinger Anda
         installed_clones = self.get_all_roblox_clones()
         
         if not installed_clones:
@@ -179,7 +166,6 @@ class JoinManager:
         self.is_monitoring = True
         self.engine_status = "Queued"
 
-        # Pemicu background orchestrator untuk menyusun susunan grid secara sekuensial (Anti-Crash)
         threading.Thread(
             target=self.launch_all_instances,
             args=(installed_clones, place_id),
@@ -199,6 +185,7 @@ class JoinManager:
                         break
                 except Exception:
                     pass
+                    
                 time.sleep(0.5)
 
         try:
