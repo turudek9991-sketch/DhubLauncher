@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Native Package Resolver Grid Engine
+DHub-Rejoin - True Stack Interrupter Grid Engine (Redfinger Special Edition)
 Author: Senior Python Developer
-Description: Forces all Roblox clones to execute via package resolution activity mappings, 
-             strictly transforming them into a right-aligned freeform layout at DPI 600.
+Description: Forces fullscreen Roblox instances to transition into Freeform Stacks (Stack 5)
+             and locks their layout dimensions on the right half of DPI 600 screens.
 """
 
 import time
@@ -25,15 +25,15 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # Grid Configuration - OPTIMIZED FOR DPI 600 LANDSCAPE
+        # Grid Configuration - OPTIMIZED FOR PURE DPI 600 LANDSCAPE
         self.grid_config = {
-            "start_x_base": 730,        # Sisi kiri bersih untuk Termux
-            "window_width": 380,        
-            "window_height": 260,       
-            "columns": 3,               
-            "top_margin": 70,           
-            "gap_x": 12,                
-            "gap_y": 12,
+            "start_x_base": 740,        # Menyisakan ruang sebelah kiri bersih untuk Termux
+            "window_width": 370,        # Lebar proporsional window melayang
+            "window_height": 260,       # Tinggi proporsional window melayang
+            "columns": 3,               # Maksimal 3 kolom kesamping
+            "top_margin": 70,           # Margin atas agar tidak menabrak status bar
+            "gap_x": 15,                
+            "gap_y": 15,
         }
         
         try:
@@ -79,17 +79,18 @@ class JoinManager:
         right = left + cfg["window_width"]
         bottom = top + cfg["window_height"]
         
+        # Format Android: left top right bottom
         return f"{left} {top} {right} {bottom}"
 
-    def force_freeform_layout(self, pkg_name: str, index: int):
+    def force_freeform_transformation(self, pkg_name: str, index: int):
         """
-        Logika Pengatur Posisi Jendela Pasca Aplikasi Terbuka.
-        Menggunakan kombinasi cmd activity tingkat rendah untuk memaksa windowing mode 5.
+        Logika Pemindah Tumpukan Jendela Jauh Lebih Agresif.
+        Memaksa transisi dari Fullscreen Stack menuju Freeform Stack (Stack 5) kemudian merubah ukuran.
         """
         bounds_str = self.calculate_grid_bounds(index)
         
-        # Polling tunggu maksimal 10 detik sampai jendela Roblox terdaftar di ActivityManager
-        for _ in range(20):
+        # Polling tunggu maksimal 12 detik sampai Task ID terdaftar penuh pasca loading game
+        for _ in range(24):
             if not self.is_monitoring:
                 break
                 
@@ -98,11 +99,12 @@ class JoinManager:
                 try:
                     task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
                     
-                    # Ubah windowing mode task ke mode 5 (Freeform melayang)
-                    self._execute_shell(f"cmd activity set-windowing-mode {task_id} 5")
-                    time.sleep(0.4)
+                    # [INTERUPSI STRATEGIS]:
+                    # 1. Hancurkan status fullscreen, paksa task ID pindah ke Freeform Stack (Stack 5)
+                    self._execute_shell(f"am stack move-task {task_id} 5 true")
+                    time.sleep(0.5)
                     
-                    # Atur koordinat presisi ke sisi kanan layar
+                    # 2. Set bounds kaku agar nangkring rapi di grid kanan layar
                     self._execute_shell(f"am task resize {task_id} {bounds_str}")
                     break
                 except Exception:
@@ -110,12 +112,10 @@ class JoinManager:
             time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Memantau status memori secara real-time (Online/Offline) pasca diluncurkan."""
-        # Berikan jeda napas 5 detik awal saat status Launched
+        """Worker Daemon: Memantau status memori secara real-time (Online/Offline)."""
         time.sleep(5)
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
-                # Ubah status ke Online hanya jika proses benar-benar bertahan di memori RAM
                 if self.clone_statuses.get(pkg_name) in ["Launched", "Loading"]:
                     self.clone_statuses[pkg_name] = "Online"
             else:
@@ -123,7 +123,7 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola siklus peluncuran dengan pemaksaan fokus aktivitas sistem."""
+        """Mengelola siklus peluncuran bertahap dengan penundaan 20 detik anti-crash."""
         total = len(clones)
         delay_cfg = 20
         
@@ -133,13 +133,10 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # [BYPASS UTAMA BUBBLE CRASH REDFINGER]:
-            # Daripada memakai intent am start mentah yang sering diblokir, kita gunakan dumpsys resolver 
-            # untuk menembak langsung modul peluncuran utama aplikasi yang terdaftar resmi di sistem Android.
+            # Gunakan jalur peluncuran universal yang terbukti sukses membuka Roblox sebelumnya
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
-                # Cari komponen MainActivity resmi milik package clone tersebut secara dinamis
                 main_act = self._execute_shell(f"cmd package resolve-activity --brief {pkg} | tail -n 1")
                 if main_act and "/" in main_act:
                     cmd = f"am start -n {main_act} --activity-brought-to-front"
@@ -147,17 +144,15 @@ class JoinManager:
                     cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
                 
             self._execute_shell(cmd)
-            
-            # Ubah status ke Launched sesaat setelah pemicu sukses ditembakkan
             self.clone_statuses[pkg] = "Launched"
             
-            # Pancing perubahan tata letak jendela freeform secara asinkron
-            threading.Thread(target=self.force_freeform_layout, args=(pkg, idx), daemon=True).start()
+            # Jalankan background thread untuk menginterupsi stack dan menata posisi grid kanan
+            threading.Thread(target=self.force_freeform_transformation, args=(pkg, idx), daemon=True).start()
             
-            # Aktifkan daemon pemantau status Online
+            # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Jeda Cooldown 20 detik penuh antar device agar aman dari force close
+            # Terapkan jeda 20 detik penuh antar-device agar emulator tidak overload
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
