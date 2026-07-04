@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Automated Multi-Window Grid Orchestrator (DPI 600 Premium Edition)
+DHub-Rejoin - Android 10+ Advanced Task Organizer Engine
 Author: Senior Python Developer
-Description: Dispatches multiple clone targets securely via hybrid launch commands 
-             and strictly tiles them into a perfect freeform right-aligned grid layout.
+Description: Uses the modern 'cmd window' API to strictly contain and grid floating 
+             Roblox instances on the right half of landscape DPI 600 screens.
 """
 
 import time
@@ -25,18 +25,17 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # Grid Configuration - OPTIMIZED FOR DPI 600 (Landscape Mode)
+        # Grid Configuration - OPTIMIZED FOR DPI 600 (Landscape Mode Right-Side Grid)
         self.grid_config = {
-            "dhub_width": 720,          # Menyisakan ruang sebelah kiri bersih untuk Termux
+            "dhub_width": 730,          # Menyisakan ruang sebelah kiri bersih untuk Termux
             "window_width": 380,        # Lebar window aplikasi melayang
-            "window_height": 270,       # Tinggi window aplikasi melayang
+            "window_height": 260,       # Tinggi window aplikasi melayang
             "columns": 3,               # Maksimal 3 kolom ke samping di sisi kanan
-            "top_margin": 60,           # Margin atas agar tidak tertutup status bar
-            "horizontal_spacing": 15,   
-            "vertical_spacing": 15,
+            "top_margin": 70,           # Margin atas agar tidak tertutup status bar
+            "horizontal_spacing": 12,   
+            "vertical_spacing": 12,
         }
         
-        # Kunci delay default mutlak di angka aman 20 detik ke konfigurasi device
         try:
             self.config_mgr.set_value("launch_delay", 20)
         except Exception:
@@ -78,17 +77,18 @@ class JoinManager:
         start_x = cfg["dhub_width"] + (col * (cfg["window_width"] + cfg["horizontal_spacing"]))
         start_y = cfg["top_margin"] + (row * (cfg["window_height"] + cfg["vertical_spacing"]))
         
+        # Format Android 10+: left top right bottom
         return f"{start_x} {start_y} {start_x + cfg['window_width']} {start_y + cfg['window_height']}"
 
     def force_freeform_grid(self, pkg_name: str, index: int):
         """
-        Logika Utama Pengatur Grid Sisi Kanan (Bypass Android 10+ Multi-Window Restriction).
-        Menangkap Task ID secara dinamis pasca-spawn dan memaksanya melayang rapi.
+        Logika Utama Pengatur Grid Sisi Kanan (Android 10+ Modern API).
+        Menggunakan perintah 'cmd window' untuk memaksa mode freeform dan resize koordinat secara instan.
         """
         bounds_str = self.calculate_grid_bounds(index)
         
-        # Polling tunggu maksimal 5 detik sampai jendela Roblox terdaftar di ActivityManager
-        for _ in range(10):
+        # Polling tunggu maksimal 6 detik sampai jendela Roblox terdaftar di ActivityManager
+        for _ in range(12):
             if not self.is_monitoring:
                 break
                 
@@ -97,11 +97,16 @@ class JoinManager:
                 try:
                     task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
                     
-                    # Langkah Mandiri: Paksa window masuk ke Freeform Stack (Stack 5)
-                    self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    time.sleep(0.4)
+                    # [METODE MODEREN ANDROID 10+]:
+                    # 1. Gunakan 'cmd window' untuk set mode freeform secara kaku ke task ID aplikasi
+                    self._execute_shell(f"cmd window set-freeform {task_id}")
+                    time.sleep(0.3)
                     
-                    # Kunci dimensi ukuran dan koordinat grid landscape
+                    # 2. Paksa Android Window Manager memotong dimensi sesuai bounds grid kanan
+                    self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
+                    
+                    # Fallback jika 'cmd window' tidak merespon di beberapa custom ROM Redfinger
+                    self._execute_shell(f"am stack move-task {task_id} 5 true")
                     self._execute_shell(f"am task resize {task_id} {bounds_str}")
                     break
                 except Exception:
@@ -123,14 +128,12 @@ class JoinManager:
         total = len(clones)
         delay_cfg = 20
         
-        # Setel seluruh target ke posisi Offline di awal
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
 
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # Eksekusi peluncuran universal tingkat tinggi (Mencegah Silent Crash Claude)
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
             else:
@@ -139,7 +142,7 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Picu penataan Freeform Grid secara asinkron di latar belakang
+            # Jalankan penataan Freeform Grid via Modern API secara asinkron
             threading.Thread(target=self.force_freeform_grid, args=(pkg, idx), daemon=True).start()
             
             # Jalankan monitor status Online
