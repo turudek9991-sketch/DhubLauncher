@@ -4,32 +4,29 @@ class ProcessManager:
     def __init__(self, logger):
         self.logger = logger
 
-    def run(self, cmd, timeout=10):
-        """Eksekusi perintah shell dengan akses root."""
+    def run(self, cmd: str) -> str:
         try:
-            full_cmd = f"su -c '{cmd}'"
-            result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-            if result.returncode != 0:
-                self.logger.debug(f"Command failed: {cmd} | Error: {result.stderr}")
+            # Semua akses root terpusat di sini
+            result = subprocess.run(f"su -c '{cmd}'", shell=True, capture_output=True, text=True, timeout=10)
             return result.stdout.strip()
         except Exception as e:
-            self.logger.error(f"Process Execution Error: {e}")
+            self.logger.error(f"Root Execution failed: {e}")
             return ""
 
-    def force_stop(self, pkg_name):
-        self.run(f"am force-stop {pkg_name}")
+    def force_stop(self, pkg: str):
+        self.run(f"am force-stop {pkg}")
 
-    def is_running(self, pkg_name):
-        return len(self.run(f"pidof {pkg_name}")) > 0
+    def is_running(self, pkg: str) -> bool:
+        return len(self.run(f"pidof {pkg}")) > 0
 
-    def launch_package(self, pkg_name, place_id=None):
+    def launch(self, pkg: str, place_id: str = None):
         if place_id:
-            cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg_name} --activity-brought-to-front"
+            cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
         else:
-            main_act = self.run(f"cmd package resolve-activity --brief {pkg_name} | tail -n 1")
-            cmd = f"am start -n {main_act} --activity-brought-to-front" if "/" in main_act else f"monkey -p {pkg_name} -c android.intent.category.LAUNCHER 1"
+            main_act = self.run(f"cmd package resolve-activity --brief {pkg} | tail -n 1")
+            cmd = f"am start -n {main_act}" if "/" in main_act else f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
         self.run(cmd)
 
-    def list_packages(self):
+    def list_clones(self) -> list:
         raw = self.run("pm list packages")
-        return [line.replace("package:", "").strip() for line in raw.split('\n') if "roblox" in line.lower()]
+        return sorted([line.replace("package:", "").strip() for line in raw.split("\n") if "roblox" in line.lower()])
