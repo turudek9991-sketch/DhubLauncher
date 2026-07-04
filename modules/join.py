@@ -3,6 +3,12 @@ DHub-Rejoin - Universal Split-Execution Freeform Engine
 Author: Senior Python Developer
 Description: Dispatches clone targets using high-compatibility launchers and forces 
              freeform grid orchestration post-spawn to bypass device intent blockage.
+             
+IMPROVEMENTS:
+- Auto grid arrangement optimization for DPI 600
+- Prevent overlap with DHUB launcher panel
+- Configurable grid layouts (2x2, 2x3, 3x3, 4x3)
+- Better window positioning and sizing
 """
 
 import time
@@ -24,6 +30,19 @@ class JoinManager:
         
         self.is_monitoring = False
         self.clone_statuses = {}
+        
+        # Grid Configuration - OPTIMIZED FOR DPI 600
+        self.grid_config = {
+            "dpi": 600,
+            "dhub_width": 450,  # Lebar panel DHUB launcher (dari sebelah kiri)
+            "dhub_padding": 20,  # Padding antara DHUB dan window pertama
+            "window_width": 370,  # Lebar optimal untuk window Roblox
+            "window_height": 270, # Tinggi optimal untuk window Roblox
+            "horizontal_spacing": 10,  # Jarak antar window horizontal
+            "vertical_spacing": 20,    # Jarak antar window vertikal
+            "top_margin": 60,  # Margin atas (statusbar)
+            "columns": 3,  # Jumlah kolom grid (bisa disesuaikan: 2, 3, atau 4)
+        }
         
         try:
             self.config_mgr.set_value("launch_delay", 20)
@@ -57,57 +76,118 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
+    def calculate_grid_position(self, index: int) -> dict:
+        """
+        Hitung posisi grid optimal berdasarkan index tanpa menutupi DHUB launcher.
+        
+        Returns:
+            dict: {
+                'x': start_x,
+                'y': start_y,
+                'width': window_width,
+                'height': window_height,
+                'row': row,
+                'col': col
+            }
+        """
+        config = self.grid_config
+        cols = config["columns"]
+        
+        row = index // cols
+        col = index % cols
+        
+        # Hitung posisi X: hindari DHUB launcher yang ada di sebelah kiri
+        start_x = config["dhub_width"] + config["dhub_padding"] + (col * (config["window_width"] + config["horizontal_spacing"]))
+        
+        # Hitung posisi Y: mulai dari bawah statusbar
+        start_y = config["top_margin"] + (row * (config["window_height"] + config["vertical_spacing"]))
+        
+        return {
+            'x': start_x,
+            'y': start_y,
+            'width': config["window_width"],
+            'height': config["window_height"],
+            'row': row,
+            'col': col,
+            'bounds_str': f"{start_x} {start_y} {start_x + config['window_width']} {start_y + config['window_height']}"
+        }
+
     def force_freeform_grid(self, pkg_name: str, index: int):
         """
-        Logika Pemindah Jendela Pasca-Spawn.
-        Menangkap Task ID secara dinamis dan memaksanya masuk ke koordinat grid kanan (DPI 600).
+        Logika Pemindah Jendela Pasca-Spawn YANG SUDAH DITINGKATKAN.
+        Menangkap Task ID secara dinamis dan memaksanya masuk ke koordinat grid yang optimal.
+        Memastikan tidak menutupi DHUB launcher panel.
         """
-        row = index // 3
-        col = index % 3
+        grid_pos = self.calculate_grid_position(index)
+        bounds_str = grid_pos['bounds_str']
         
-        width = 380
-        height = 270
-        
-        start_x = 740 + (col * 395)
-        start_y = 60 + (row * 285)
-        
-        bounds_str = f"{start_x} {start_y} {start_x + width} {start_y + height}"
+        self.logger.info(f"[Grid Layout] Package {pkg_name} -> Row {grid_pos['row']}, Col {grid_pos['col']}, Pos: ({grid_pos['x']}, {grid_pos['y']})")
         
         # Polling singkat (maksimal 5 detik) menunggu Task ID terdaftar di sistem Android
-        for _ in range(10):
-            task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord' | grep {pkg_name} | head -n 1")
-            if task_info:
-                try:
-                    task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
-                    # Paksa tumpukan beralih ke stack 5 (Freeform Mode)
-                    self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    time.sleep(0.3)
-                    # Kunci koordinat posisi grid kanan
-                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.5)
+        max_retries = 10
+        for retry in range(max_retries):
+            try:
+                task_info = self._execute_shell(
+                    f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord' | grep {pkg_name} | head -n 1"
+                )
+                
+                if task_info:
+                    try:
+                        # Extract task ID dari task_info
+                        task_id = None
+                        for s in task_info.split():
+                            if s.isdigit():
+                                task_id = int(s)
+                                break
+                        
+                        if task_id:
+                            # Paksa tumpukan beralih ke stack 5 (Freeform Mode)
+                            self._execute_shell(f"am stack move-task {task_id} 5 true")
+                            time.sleep(0.5)
+                            
+                            # Kunci koordinat posisi grid yang sudah dihitung
+                            self._execute_shell(f"am task resize {task_id} {bounds_str}")
+                            
+                            self.logger.info(f"[✓] Successfully arranged {pkg_name} at position ({grid_pos['x']}, {grid_pos['y']})")
+                            break
+                    except (ValueError, IndexError) as e:
+                        self.logger.debug(f"Failed to parse task info: {e}")
+                        
+            except Exception as e:
+                self.logger.debug(f"Retry {retry + 1}/{max_retries} for {pkg_name}: {e}")
+            
+            # Tunggu sebelum retry
+            if retry < max_retries - 1:
+                time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
         """Worker Daemon: Memantau transisi status secara real-time berdasarkan manifes memori."""
         while self.is_monitoring:
-            if self.is_package_running(pkg_name):
-                if self.clone_statuses.get(pkg_name) == "Launched":
-                    self.clone_statuses[pkg_name] = "Online"
-            else:
-                # Jika aplikasi terputus atau ditutup paksa
-                self.clone_statuses[pkg_name] = "Offline"
+            try:
+                if self.is_package_running(pkg_name):
+                    if self.clone_statuses.get(pkg_name) == "Launched":
+                        self.clone_statuses[pkg_name] = "Online"
+                else:
+                    # Jika aplikasi terputus atau ditutup paksa
+                    self.clone_statuses[pkg_name] = "Offline"
+            except Exception as e:
+                self.logger.debug(f"Monitor daemon error for {pkg_name}: {e}")
+            
             time.sleep(1.5)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola peluncuran dengan pemisahan eksekusi untuk menjamin Roblox terbuka 100%."""
+        """
+        Mengelola peluncuran dengan pemisahan eksekusi untuk menjamin Roblox terbuka 100%
+        dan disusun dalam grid otomatis.
+        """
         total = len(clones)
         delay_cfg = 20
         
         # Setel seluruh status awal ke posisi Offline (Menunggu antrean delay)
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
+
+        self.logger.info(f"[Launcher] Starting {total} Roblox instances with auto grid arrangement...")
 
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
@@ -125,16 +205,28 @@ class JoinManager:
             self.clone_statuses[pkg] = "Launched"
             
             # Jalankan orkestrasi penataan jendela di latar belakang secara asinkron
-            threading.Thread(target=self.force_freeform_grid, args=(pkg, idx), daemon=True).start()
+            # dengan positioning yang sudah dioptimalkan
+            threading.Thread(
+                target=self.force_freeform_grid, 
+                args=(pkg, idx), 
+                daemon=True
+            ).start()
             
             # Jalankan pengawas status Online memori secara real-time
-            threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
+            threading.Thread(
+                target=self.monitor_live_state_daemon, 
+                args=(pkg,), 
+                daemon=True
+            ).start()
             
             # Eksekusi interupsi hitung mundur delay join 20 detik penuh sebelum memproses device berikutnya
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully initialized and arranged {total} instances.")
+        self.webhook_mgr.send_status_embed(
+            status="SUCCESS", 
+            action_detail=f"Successfully initialized and arranged {total} instances in grid layout."
+        )
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender grafis visual legendaris KAERU yang statis, kokoh, dan bergaris rapi."""
@@ -173,10 +265,14 @@ class JoinManager:
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
         stdscr.addstr(11, 45, "20s (Locked)", white)
         
-        stdscr.addstr(12, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        grid_layout = f"{self.grid_config['columns']} Col Grid"
+        stdscr.addstr(12, 0, "│ Grid Layout                              │                        │", cyan)
+        stdscr.addstr(12, 45, grid_layout, white)
+        
+        stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
         # Loop Rendering Status Baris Komponen Target
-        current_row = 13
+        current_row = 14
         for idx, pkg in enumerate(clones[:8]):
             stdscr.addstr(current_row, 0, "│                                          │                        │", cyan)
             display_name = pkg[:38]
@@ -200,8 +296,33 @@ class JoinManager:
         
         stdscr.refresh()
 
+    def set_grid_layout(self, columns: int):
+        """
+        Ubah layout grid secara dinamis.
+        
+        Args:
+            columns (int): Jumlah kolom (2, 3, atau 4)
+        """
+        if columns in [2, 3, 4]:
+            self.grid_config["columns"] = columns
+            self.logger.info(f"Grid layout changed to {columns} columns")
+        else:
+            self.logger.warning(f"Invalid column count. Use 2, 3, or 4. Current: {self.grid_config['columns']}")
+
+    def adjust_window_size(self, width: int, height: int):
+        """
+        Sesuaikan ukuran window untuk grid layout.
+        
+        Args:
+            width (int): Lebar window dalam pixel
+            height (int): Tinggi window dalam pixel
+        """
+        self.grid_config["window_width"] = width
+        self.grid_config["window_height"] = height
+        self.logger.info(f"Window size adjusted to {width}x{height}")
+
     def launch_app(self):
-        """Titik masuk siklus monitoring."""
+        """Titik masuk siklus monitoring dengan auto grid arrangement."""
         place_id = self.config_mgr.config_data.get("place_id", "")
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
@@ -214,6 +335,9 @@ class JoinManager:
             return
 
         self.is_monitoring = True
+        
+        self.logger.info(f"Found {len(installed_clones)} Roblox instances")
+        self.logger.info(f"Grid configuration: {self.grid_config['columns']} columns, {self.grid_config['window_width']}x{self.grid_config['window_height']}px")
 
         # Pemicu background orchestrator thread
         threading.Thread(
