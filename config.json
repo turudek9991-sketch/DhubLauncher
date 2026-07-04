@@ -1,0 +1,8 @@
+{
+  "package": "",
+  "launch_delay": 3,
+  "theme": "dark",
+  "discord_webhook": "",
+  "autosave": true,
+  "log_level": "INFO"
+}
