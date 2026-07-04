@@ -1,7 +1,7 @@
 """
-DHub-Rejoin - Premium KAERU Visual Engine (Fixed Structure & Dual Column Layout)
+DHub-Rejoin - Ultra Stability KAERU Visual Engine (Anti-Flicker & Anti-Shatter)
 Author: Senior Python Developer
-Description: Delivers a clean, multi-threaded, non-duplicating terminal status monitor.
+Description: Uses terminal screen buffering to deliver a completely static, flicker-free dual column monitor.
 """
 
 import time
@@ -99,31 +99,25 @@ class JoinManager:
                 process.terminate()
 
     def print_kaeru_layout(self, kaeru_header: str, target_pkg: str, place_id: str, ram_info: str):
-        """Mencetak struktur tabel terbungkus kotak cyan yang stabil dan rapi (Anti-Hancur)."""
-        # Bersihkan terminal secara instan ke koordinat awal 0,0
-        sys.stdout.write("\033[H\033[2J")
+        """Merender struktur visual teratur menggunakan koordinat kursor statis (Anti-Flicker)."""
+        # Kembalikan kursor ke baris paling atas (0,0) tanpa menghapus layar total agar tidak berkedip hancur
+        sys.stdout.write("\033[H")
         sys.stdout.flush()
         
-        # Tampilkan logo teks besar DHUB di atas
+        # Tampilkan logo teks besar DHUB
         console.print(kaeru_header)
         
-        # PEMBUATAN TABEL: Menggunakan border SQUARE solid cyan agar persis seperti KAERU
-        table = Table(box=box.SQUARE, border_style="cyan", show_header=True, header_style="bold cyan", width=70)
+        # Kunci tabel dengan border solid cyan dan padding ketat
+        table = Table(box=box.SQUARE, border_style="cyan", show_header=True, header_style="bold cyan", width=68)
         table.add_column("PACKAGE", style="bold white", width=42)
-        table.add_column("STATUS", style="bold cyan", width=24)
+        table.add_column("STATUS", style="bold cyan", width=22)
         
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
         
-        # 1. Baris Informasi System Memory
         table.add_row("System Memory", f"Free: {ram_info}")
-        
-        # 2. Baris Informasi Launch Delay
         table.add_row("Launch Delay", f"{delay_cfg}s...")
-        
-        # Baris kosong sebagai pembatas struktural tengah tabel
         table.add_section()
         
-        # Penentuan warna status dinamis
         if self.engine_status == "Online":
             status_display = "[bold green]Online[/bold green]"
         elif self.engine_status == "Launched":
@@ -133,15 +127,13 @@ class JoinManager:
         else:
             status_display = f"[bold magenta]{self.engine_status}[/bold magenta]"
             
-        # 3. Baris Target Package Aktif
         table.add_row(f"{target_pkg}", status_display)
         
-        # Cetak objek tabel ke layar
         console.print(table)
         console.print("\n[dim white]» Tekan Enter Kapan Saja Untuk Berhenti Pemantauan Core Engine...[/dim white]")
 
     def launch_app(self):
-        """Siklus utama peluncuran asinkron dengan visualisasi rendering terisolasi."""
+        """Siklus pemantauan dengan isolasi screen buffer penuh."""
         kaeru_header = (
             "[bold cyan]██████╗ ██╗  ██╗██╗   ██╗██████╗ \n"
             "██╔══██╗██║  ██║██║   ██║██╔══██╗\n"
@@ -168,6 +160,10 @@ class JoinManager:
             if self.monitor_thread:
                 self.monitor_thread.join(timeout=1)
 
+        # AKTIFKAN ALTERNATE SCREEN BUFFER & SEMBUNYIKAN KURSOR (ANTI-KEDIP TOTAL)
+        sys.stdout.write("\033[?1049h\033[?25l")
+        sys.stdout.flush()
+
         self.is_monitoring = True
         self.engine_status = "Ready"
         
@@ -188,12 +184,18 @@ class JoinManager:
             input_thread = threading.Thread(target=wait_for_user_exit, daemon=True)
             input_thread.start()
             
+            # Bersihkan layar sekali saja di awal sesi buffer baru
+            console.clear()
+            
             while not stop_event.is_set():
                 self.print_kaeru_layout(kaeru_header, target_pkg, place_id, ram_info)
                 time.sleep(0.5)
                 
         finally:
             self.is_monitoring = False
+            # MATIKAN ALTERNATE SCREEN BUFFER & TAMPILKAN KURSOR KEMBALI
+            sys.stdout.write("\033[?25h\033[?1049l")
+            sys.stdout.flush()
             
         console.clear()
         console.print("[bold yellow][!] Pengawasan dinonaktifkan. Kembali ke panel utama...[/bold yellow]")
