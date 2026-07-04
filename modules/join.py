@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Physical UI Injection Grid Engine (Redfinger Landscape Locked)
+DHub-Rejoin - Native Android Freeform Grid Engine
 Author: Senior Python Developer
-Description: Bypasses cloud emulator WindowManager restrictions by simulating 
-             micro-hardware taps and drags to strictly snap floating instances to the right.
+Description: Forces all Roblox instances to launch directly inside native freeform bounds 
+             on the right side of the screen at DPI 600, completely eliminating positioning lag.
 """
 
 import time
@@ -24,6 +24,18 @@ class JoinManager:
         
         self.is_monitoring = False
         self.clone_statuses = {}
+        
+        # Grid Configuration - OPTIMIZED FOR DPI 600 LANDSCAPE
+        # Menghitung porsi layar kanan dengan ketat
+        self.grid_config = {
+            "start_x_base": 720,        # Batas awal sisi kanan layar (Termux aman di sisi kiri)
+            "window_width": 380,        # Lebar proporsional window Roblox melayang
+            "window_height": 270,       # Tinggi proporsional window Roblox melayang
+            "columns": 3,               # Maksimal 3 kolom kesamping
+            "top_margin": 60,           # Margin atas agar tidak menabrak status bar
+            "gap_x": 15,                
+            "gap_y": 15,
+        }
         
         try:
             self.config_mgr.set_value("launch_delay", 20)
@@ -57,29 +69,19 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def inject_physical_grid(self, index: int):
-        """
-        Logika Utama Pengatur Grid via Injeksi Sentuhan Fisik (DPI 600 Landscape).
-        Menyeret jendela floating dari posisi acak bawaan emulator menuju sisi kanan secara rapi.
-        """
-        # Tunggu jendela Roblox benar-benar muncul di layar Redfinger
-        time.sleep(3.5)
+    def get_grid_bounds_string(self, index: int) -> str:
+        """Menghitung koordinat bounding box persegi panjang (left,top,right,bottom)."""
+        cfg = self.grid_config
+        row = index // cfg["columns"]
+        col = index % cfg["columns"]
         
-        row = index // 3
-        col = index % 3
+        left = cfg["start_x_base"] + (col * (cfg["window_width"] + cfg["gap_x"]))
+        top = cfg["top_margin"] + (row * (cfg["window_height"] + cfg["gap_y"]))
+        right = left + cfg["window_width"]
+        bottom = top + cfg["window_height"]
         
-        # Koordinat Target Finis di Sisi Kanan Layar (DPI 600 Landscape)
-        target_x = 760 + (col * 390)
-        target_y = 90 + (row * 280)
-        
-        # Asumsi posisi awal bar judul window melayang bawaan Redfinger (biasanya di tengah/diagonal)
-        # Kita lakukan pemicuan ketukan mikro untuk mengaktifkan fokus window
-        self._execute_shell("input tap 500 400")
-        time.sleep(0.2)
-        
-        # Eksekusi seret paksa (draganddrop) tingkat root dari koordinat acak tengah ke koordinat grid kanan yang rapi
-        # Format: input draganddrop startX startY endX endY duration_ms
-        self._execute_shell(f"input draganddrop 450 300 {target_x} {target_y} 400")
+        # Format Android untuk parameter --bounds
+        return f"{left},{top},{right},{bottom}"
 
     def monitor_live_state_daemon(self, pkg_name: str):
         """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
@@ -92,7 +94,7 @@ class JoinManager:
             time.sleep(1.5)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola siklus peluncuran bertahap dengan penundaan 20 detik anti-crash."""
+        """Mengelola peluncuran dengan pemaksaan Freeform Bounds asli sejak inisialisasi awal."""
         total = len(clones)
         delay_cfg = 20
         
@@ -101,26 +103,30 @@ class JoinManager:
 
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
+            bounds_str = self.get_grid_bounds_string(idx)
             
+            # [SOLUSI FINAL NATIVE LAUNCH MODE]:
+            # Kita injeksikan parameter '--windowingMode 5' dan '--bounds' langsung di dalam perintah am start.
+            # Ini memaksa Android melahirkan Roblox langsung dalam bentuk kotak floating yang rapi di kanan
+            # tanpa perlu digeser-geser manual atau di-resize lagi pasca terbuka (Bypass Bug Redfinger).
             if place_id:
-                cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
+                cmd = f"am start --windowingMode 5 --bounds {bounds_str} -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
             else:
-                cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
+                cmd = f"am start --windowingMode 5 --bounds {bounds_str} -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p {pkg}"
                 
             self._execute_shell(cmd)
+            
+            # Ubah status ke Launched sesaat setelah pemicu biner dikirim ke Window Manager
             self.clone_statuses[pkg] = "Launched"
             
-            # Pemicu Injeksi Gerakan Fisik secara asinkron agar jendela bergeser rapi ke kanan
-            threading.Thread(target=self.inject_physical_grid, args=(idx,), daemon=True).start()
-            
-            # Jalankan monitor status Online
+            # Jalankan monitor status Online berbasis RAM secara realtime
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Terapkan jeda 20 detik penuh antar-device agar emulator tidak overload
+            # Terapkan jeda 20 detik penuh antar-device agar emulator tidak overload/freeze
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully arranged {total} instances into physical right-side grid.")
+        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully deployed {total} native freeform instances into layout.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar."""
