@@ -1,7 +1,7 @@
 """
-DHub-Rejoin - Application Joiner & Launcher Module (KAERU Visual Style)
+DHub-Rejoin - Application Joiner & Launcher Module (Deep Linking Support)
 Author: Senior Python Developer
-Description: Custom monitoring layout mimicking premium automated instance dashboards.
+Description: Custom monitoring layout with automated Roblox Deep Link game injection capability.
 """
 
 import time
@@ -22,6 +22,9 @@ class JoinManager:
         self.arrange_mgr = ArrangeManager(config_mgr, logger)
 
     def _execute_shell(self, command: str) -> bool:
+        """
+        Mengeksekusi perintah shell tingkat root/superuser.
+        """
         try:
             root_command = f"su -c '{command}'"
             result = subprocess.run(root_command, shell=True, capture_output=True, text=True, timeout=15)
@@ -32,11 +35,10 @@ class JoinManager:
 
     def launch_app(self):
         """
-        Meluncurkan aplikasi dengan visualisasi dashboard terpusat layaknya tool bypass premium.
+        Meluncurkan clone aplikasi Roblox langsung meloncat ke game spesifik menggunakan Android Intent URI Scheme.
         """
         console.clear()
         
-        # Header Teks Besar Sesuai Permintaan
         kaeru_header = (
             "[bold cyan]██████╗ ██╗  ██╗██╗   ██╗██████╗ \n"
             "██╔══██╗██║  ██║██║   ██║██╔══██╗\n"
@@ -44,43 +46,54 @@ class JoinManager:
             "██║  ██║██╔══██║██║   ██║██╔══██╗\n"
             "██████╔╝██║  ██║╚██████╔╝██████╔╝\n"
             "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ [/bold cyan]\n"
-            "            [bold white]Launcher v1.0[/bold white]\n"
+            "            [bold white]Launcher v1.0 (Deep-Link)[/bold white]\n"
         )
         console.print(kaeru_header)
         
         target_pkg = self.config_mgr.config_data.get("package", "")
+        place_id = self.config_mgr.config_data.get("place_id", "")
         delay = self.config_mgr.config_data.get("launch_delay", 3)
         
         if not target_pkg:
             console.print("[bold red][!] ERROR: Paket target kosong! Jalankan Scan terlebih dahulu.[/bold red]")
             return
 
-        # Mendapatkan info RAM/System Memory real-time untuk diletakkan di samping tabel
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
 
-        # Kontruksi Tabel Mirip Gambar KAERU
+        # Visualisasi monitoring dashboard
         monitor_table = Table(box=None, padding=(0, 2))
-        monitor_table.add_column("PACKAGE", style="bold white", width=30)
-        monitor_table.add_column("SYSTEM MEMORY", style="bold cyan", width=20)
-        monitor_table.add_column("STATUS", style="bold cyan", width=15)
+        monitor_table.add_column("TARGET APP / CLONE", style="bold white", width=25)
+        monitor_table.add_column("TARGET PLACE ID", style="bold yellow", width=18)
+        monitor_table.add_column("SYSTEM RAM", style="bold cyan", width=15)
+        monitor_table.add_column("ENGINE STATUS", style="bold green", width=15)
         
-        # Baris data utama
-        monitor_table.add_row(target_pkg, f"Free RAM:", "[bold green]Online[/bold green]")
-        monitor_table.add_row("(w1dnFarmer...)", ram_info, "[bold green]Online[/bold green]")
+        display_pid = place_id if place_id else "Global Launch"
+        monitor_table.add_row(target_pkg, display_pid, ram_info, "Monitoring...")
         
         console.print(Panel(monitor_table, border_style="cyan"))
         
         console.print(f"\n[bold yellow][*] Memulai hitung mundur stabilitas delay ({delay}s)...[/bold yellow]")
         time.sleep(delay)
         
-        console.print("[bold green][*] Mengirimkan trigger Superuser Intent Launch...[/bold green]")
-        cmd = f"monkey -p {target_pkg} -c android.intent.category.LAUNCHER 1"
+        console.print("[bold green][*] Menembakkan Deep Link Intent Bypass via Root...[/bold green]")
         
+        # LOGIKA BYPASS UTAMA:
+        # Jika Place ID diatur di settings, kita paksa android membuka package tersebut 
+        # langsung melompat ke server game yang dituju menggunakan skema URI data.
+        if place_id:
+            cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {target_pkg}"
+            action_desc = f"Forced Auto-Rejoin directly to Place ID: {place_id}"
+        else:
+            # Fallback jika Place ID dikosongkan (Buka aplikasi normal)
+            cmd = f"monkey -p {target_pkg} -c android.intent.category.LAUNCHER 1"
+            action_desc = "Normal Global App Launch executed."
+            
         success = self._execute_shell(cmd)
         
         if success:
-            console.print("[bold green][+] Aplikasi berhasil diluncurkan! Sistem otomasi berjalan di latar belakang.[/bold green]")
-            self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Automated Rejoin for {target_pkg} executed successfully.")
+            console.print("[bold green][+] Sukses! Perintah Rejoin berhasil dieksekusi langsung menuju target game.[/bold green]")
+            self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=action_desc)
         else:
-            console.print("[bold red][!] Akses intent gagal didorong. Pastikan emulator memberikan izin root penuh ke Termux.[/bold red]")
+            console.print("[bold red][!] Gagal: Emulator menolak paket intent. Periksa kembali nama package / status root clone Anda.[/bold red]")
+            self.webhook_mgr.send_status_embed(status="FAILED", action_detail=f"Failed to push view intent for Place ID {place_id}")
