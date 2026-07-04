@@ -1,8 +1,7 @@
 """
-DHub-Rejoin - Premium KAERU Curses Visual Engine
+DHub-Rejoin - Premium KAERU Curses Visual Engine (Anti-Crash Edition)
 Author: Senior Python Developer
-Description: Uses the standard python curses library to lock the terminal window dimensions, 
-             preventing ANY layout shattering or flickering when switching apps.
+Description: High-stability curses layout engineered specifically to run inside cloud emulators without triggering Android process kills.
 """
 
 import time
@@ -67,7 +66,7 @@ class JoinManager:
             while self.is_monitoring:
                 line = process.stdout.readline()
                 if not line:
-                    time.sleep(0.5)
+                    time.sleep(1.0) # Ditambah jeda agar menghemat CPU dari overhead logcat
                     continue
                 
                 if any(kw in line for kw in ["died", "crash", "FORCE-CLOSE", "Disconnected", "ActivityManager: Process"]):
@@ -87,7 +86,7 @@ class JoinManager:
                     self._execute_shell("logcat -c")
                     self.engine_status = "Online"
                     
-                time.sleep(0.1)
+                time.sleep(0.5) # Anti-Crash: Membatasi kecepatan loop background
         except Exception as e:
             self.logger.error(f"Error within background daemon loop: {e}")
             self.engine_status = "Offline"
@@ -96,11 +95,9 @@ class JoinManager:
                 process.terminate()
 
     def print_kaeru_curses(self, stdscr, target_pkg: str, ram_info: str):
-        """Merender UI kokoh bergaris mirip KAERU menggunakan engine curses tingkat rendah."""
-        # Bersihkan window curses internal secara total
+        """Merender UI kokoh bergaris dengan Logo DHUB besar menggunakan engine curses tingkat rendah."""
         stdscr.erase()
         
-        # Inisialisasi warna dasar jika didukung terminal
         curses.use_default_colors()
         curses.init_pair(1, curses.COLOR_CYAN, -1)
         curses.init_pair(2, curses.COLOR_WHITE, -1)
@@ -111,7 +108,6 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
-        # Pilih warna berdasarkan status saat ini
         if self.engine_status == "Online":
             status_color = curses.color_pair(3) | curses.A_BOLD
         elif self.engine_status in ["Launched", "Ready"]:
@@ -119,44 +115,49 @@ class JoinManager:
         else:
             status_color = curses.color_pair(5) | curses.A_BOLD
 
-        delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
+        # Mengambil delay saat ini (jika tidak diatur, otomatis default ke 20 detik)
+        delay_cfg = self.config_mgr.config_data.get("launch_delay", 20)
         
-        # Judul Atas
-        stdscr.addstr(0, 2, "=== DHUB AUTOMATION LAUNCHER ===", cyan | curses.A_BOLD)
+        # [KEMBALIKAN LOGO DHUB BESAR]: Menggunakan pencetakan berbasis koordinat baris absolut
+        stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
+        stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
+        stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
+        stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
+        stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v1.0", cyan | curses.A_BOLD)
         
-        # Render Tabel Garis Kotak Khas KAERU
-        stdscr.addstr(2, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
-        stdscr.addstr(3, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
-        stdscr.addstr(3, 2, "PACKAGE", white | curses.A_BOLD)
-        stdscr.addstr(3, 45, "STATUS", cyan | curses.A_BOLD)
+        # Geser posisi Tabel KAERU ke bawah agar tidak bertabrakan dengan logo (Mulai baris ke-7)
+        stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
+        stdscr.addstr(8, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
+        stdscr.addstr(8, 2, "PACKAGE", white | curses.A_BOLD)
+        stdscr.addstr(8, 45, "STATUS", cyan | curses.A_BOLD)
         
-        stdscr.addstr(4, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        stdscr.addstr(9, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
         # Baris System Memory
-        stdscr.addstr(5, 0, "│ System Memory                            │                        │", cyan)
-        stdscr.addstr(5, 45, f"Free: {ram_info}", white)
+        stdscr.addstr(10, 0, "│ System Memory                            │                        │", cyan)
+        stdscr.addstr(10, 45, f"Free: {ram_info}", white)
         
         # Baris Launch Delay
-        stdscr.addstr(6, 0, "│ Launch Delay                             │                        │", cyan)
-        stdscr.addstr(6, 45, f"{delay_cfg}s...", white)
+        stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
+        stdscr.addstr(11, 45, f"{delay_cfg}s...", white)
         
-        stdscr.addstr(7, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        stdscr.addstr(12, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
-        # Baris Data Akun Clone / Package target
+        # Baris Target Package Roblox
         display_pkg = target_pkg[:38] if len(target_pkg) > 38 else target_pkg
-        stdscr.addstr(8, 0, "│                                          │                        │", cyan)
-        stdscr.addstr(8, 2, display_pkg, white)
-        stdscr.addstr(8, 45, self.engine_status, status_color)
+        stdscr.addstr(13, 0, "│                                          │                        │", cyan)
+        stdscr.addstr(13, 2, display_pkg, white)
+        stdscr.addstr(13, 45, self.engine_status, status_color)
         
-        stdscr.addstr(9, 0, "└──────────────────────────────────────────┴────────────────────────┘", cyan)
+        stdscr.addstr(14, 0, "└──────────────────────────────────────────┴────────────────────────┘", cyan)
         
-        stdscr.addstr(11, 0, "» Tekan 'q' untuk keluar dari mode monitoring...", white | curses.A_DIM)
+        stdscr.addstr(16, 0, "» Tekan 'q' atau 'Enter' untuk berhenti dan kembali ke menu...", white | curses.A_DIM)
         
-        # Refresh screen fisik secara realtime
         stdscr.refresh()
 
     def launch_app(self):
-        """Titik masuk siklus monitoring terisolasi menggunakan curses wrapper."""
+        """Titik masuk siklus monitoring terisolasi menggunakan curses wrapper dengan optimasi stabilitas CPU."""
         target_pkg = self.config_mgr.config_data.get("package", "")
         place_id = self.config_mgr.config_data.get("place_id", "")
         
@@ -168,6 +169,11 @@ class JoinManager:
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
 
+        # [FORCED DEFAULT DELAY TO 20]: Memastikan jika konfigurasi di bawah 20 atau kosong, di-set ke 20
+        current_delay = self.config_mgr.config_data.get("launch_delay", 3)
+        if current_delay < 20:
+            self.config_mgr.set_value("launch_delay", 20)
+
         if self.is_monitoring:
             self.is_monitoring = False
             if self.monitor_thread:
@@ -176,7 +182,6 @@ class JoinManager:
         self.is_monitoring = True
         self.engine_status = "Ready"
         
-        # Jalankan daemon pengecekan logcat di latar belakang
         self.monitor_thread = threading.Thread(
             target=self.background_monitor_loop,
             args=(target_pkg, place_id),
@@ -184,25 +189,23 @@ class JoinManager:
         )
         self.monitor_thread.start()
 
-        # Panggil curses wrapper utama agar terminal masuk ke mode grafis terkunci
         def curses_main(stdscr):
-            # Hilangkan kedipan kursor terminal asli
             curses.curs_set(0)
-            # Set deteksi input menjadi non-blocking agar perulangan visual tidak macet
+            # Mengubah waktu blocking timeout menjadi lebih santai (500ms) demi mencegah Termux di-kill Android
             stdscr.nodelay(True)
-            stdscr.timeout(100)
+            stdscr.timeout(500)
             
             while self.is_monitoring:
                 self.print_kaeru_curses(stdscr, target_pkg, ram_info)
                 
-                # Cek apakah pengguna menekan tombol 'q' untuk keluar
                 try:
                     key = stdscr.getch()
-                    if key == ord('q') or key == ord('Q') or key == 10: # 10 adalah kode enter
+                    if key in [ord('q'), ord('Q'), 10]: # Deteksi tombol keluar
                         break
                 except Exception:
                     pass
                     
+                # [ANTI-CRASH PIVOTAL]: Memberikan napas yang cukup bagi CPU tty terminal
                 time.sleep(0.5)
 
         try:
