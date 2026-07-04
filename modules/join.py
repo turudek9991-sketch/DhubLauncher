@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - True Kaeru Visual Grid Clone Engine
+DHub-Rejoin - True Kaeru Visual Grid Clone Engine (Bug & Layout Fixed)
 Author: Senior Python Developer
-Description: Hard-coded right-side clipping algorithms mimicking Kaeru Tools layout bounds
-             perfectly matched for DPI 600 landscape cloud configurations.
+Description: Fixes the KeyError bug and forces proper alignment by managing 
+             both Termux and Roblox windowing states concurrently.
 """
 
 import time
@@ -25,13 +25,14 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [MIMIC KAERU LAYOUT MATRIX]: Mengunci koordinat sisi kanan secara kaku layaknya screenshot
+        # [MIMIC KAERU LAYOUT CONFIGURATION - DPI 600 OPTIMIZED]
         self.grid_config = {
-            "termux_panel_width": 640,   # Sisi kiri 0-640 murni untuk panel Termux agar tidak tertutup
-            "window_width": 420,         # Lebar window Roblox kloningan
-            "window_height": 290,        # Tinggi window Roblox kloningan
-            "start_y": 0,                # Rapat dari batas atas layar
-            "gap": 2                     # Celah super tipis agar terlihat rapat dan clean
+            "termux_width": 580,         # Lebar jendela Termux di sisi kiri
+            "termux_height": 600,        # Tinggi jendela Termux
+            "window_width": 430,         # Lebar window Roblox
+            "window_height": 280,        # Tinggi window Roblox
+            "start_y": 10,               
+            "gap": 5                     
         }
         
         try:
@@ -51,7 +52,7 @@ class JoinManager:
             return ""
 
     def get_all_roblox_clones(self) -> list:
-        """Memindai sistem secara instan untuk mencari semua package yang terinstal dengan unsur 'roblox'."""
+        """Memindai sistem secara instan untuk mencari semua package dengan unsur 'roblox'."""
         raw_packages = self._execute_shell("pm list packages")
         clones = []
         for line in raw_packages.split("\n"):
@@ -66,18 +67,32 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
+    def fix_termux_position(self):
+        """Memaksa jendela Termux bergeser rapat ke sisi kiri layar (Bypass Layout Overlap)."""
+        try:
+            cfg = self.grid_config
+            # Cari Task ID milik Termux secara dinamis
+            termux_info = self._execute_shell("dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord|Task' | grep com.termux | head -n 1")
+            if termux_info:
+                termux_id = [int(s) for s in termux_info.split() if s.isdigit() and int(s) > 0][0]
+                bounds_str = f"0 {cfg['start_y']} {cfg['termux_width']} {cfg['termux_height']}"
+                self._execute_shell(f"cmd activity set-windowing-mode {termux_id} 5")
+                self._execute_shell(f"am task resize {termux_id} {bounds_str}")
+        except Exception:
+            pass
+
     def calculate_kaeru_bounds(self, index: int) -> str:
-        """Menghitung pembagian koordinat kanan-bawah persis seperti visualisasi Kaeru Tools."""
+        """Menghitung pembagian koordinat sisi kanan secara presisi [FIXED KEYERROR]."""
         cfg = self.grid_config
         
-        # Susunan matematis: Penempatan bergeser ke kanan setelah Termux Panel Width selesai
+        # Susunan grid 2 kolom di sisi kanan setelah jendela Termux selesai
         col = index % 2
         row = index // 2
         
-        left = cfg["termux_panel_width"] + (col * (cfg["window_width"] + cfg["gap"]))
+        left = cfg["termux_width"] + (col * (cfg["window_width"] + cfg["gap"]))
         top = cfg["start_y"] + (row * (cfg["window_height"] + cfg["gap"]))
-        right = left + cfg["width"]
-        bottom = top + cfg["height"]
+        right = left + cfg["window_width"]
+        bottom = top + cfg["window_height"]
         
         return f"{left} {top} {right} {bottom}"
 
@@ -85,8 +100,8 @@ class JoinManager:
         """Memaksa alokasi task ID masuk ke dalam cetakan posisi Kaeru secara instan."""
         bounds_str = self.calculate_kaeru_bounds(index)
         
-        # Berikan jeda waktu agar transisi loading activity Redfinger selesai
-        time.sleep(4.5)
+        # Tunggu sampai render grafis awal selesai
+        time.sleep(5.0)
         
         for _ in range(15):
             if not self.is_monitoring:
@@ -97,7 +112,6 @@ class JoinManager:
                 try:
                     task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
                     
-                    # Tembak langsung sub-sistem WindowManager bawaan OS untuk mengunci bounds
                     self._execute_shell(f"cmd activity set-resizable {task_id} true")
                     self._execute_shell(f"am stack move-task {task_id} 5 true")
                     self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
@@ -108,7 +122,7 @@ class JoinManager:
             time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Memantau status memori secara real-time (Online/Offline)."""
+        """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
         time.sleep(5)
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
@@ -119,9 +133,11 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Siklus utama peluncuran sekuensial Kaeru Tools System."""
         total = len(clones)
         delay_cfg = 20
+        
+        # Kunci posisi Termux ke kiri dulu agar layout kanan bersih semenjak start
+        self.fix_termux_position()
         
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
@@ -141,17 +157,14 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Eksekusi penataan posisi asinkron ala Kaeru Engine
             threading.Thread(target=self.force_kaeru_grid_alignment, args=(pkg, idx), daemon=True).start()
-            
-            # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
             if idx < total - 1:
                 time.sleep(delay_cfg)
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
-        """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
+        """Merender TUI Panel legendaris KAERU yang kokoh dan rapi."""
         stdscr.erase()
         
         curses.use_default_colors()
@@ -165,7 +178,6 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
-        # Logo Teks Besar KAERU Style
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
