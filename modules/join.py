@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - App Cloner XML Grid Engine (Super Compact Frame Fix)
+DHub-Rejoin - App Cloner XML Grid Engine (Dynamic Settings Config Edition)
 Author: Senior Python Developer
 Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
-             shared_preferences XML layout properties using micro right-side bounds.
+             shared_preferences XML layout properties using dynamically loaded sizes from config.
 """
 
 import time
@@ -26,22 +26,29 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [SUPER COMPACT KAERU MATRIX - DPI 600 HARD LOCK]
-        # Ukuran dan margin disusutkan maksimal agar fit sempurna di frame Redfinger
-        self.grid_config = {
-            "start_x_base": 660,        # Geser merapat ke Termux agar sisi kanan tidak luber keluar frame
-            "window_width": 280,        # SUPER MINI: Lebar proporsional window melayang
-            "window_height": 200,       # SUPER MINI: Tinggi proporsional window melayang
-            "columns": 2,               # Formasi tetap 2 kolom ke samping di wilayah kanan
-            "top_margin": 60,           # Batas aman dari status bar atas
-            "gap": 5                    # Celah minimalis antar jendela
-        }
-        
+        # [INTEGRASI CONFIG LAYOUT DINAMIS]
+        # Mengambil dari setting config aplikasi, jika belum diatur otomatis pakai default super compact yang pas kemarin
         try:
+            # Membaca nilai dari config, jika tidak ada fallback ke default imut kita
+            self.start_x_base = self.config_mgr.config_data.get("grid_start_x", 660)
+            self.window_width = self.config_mgr.config_data.get("grid_width", 280)
+            self.window_height = self.config_mgr.config_data.get("grid_height", 200)
+            self.columns = self.config_mgr.config_data.get("grid_columns", 2)
+            self.top_margin = self.config_mgr.config_data.get("grid_top_margin", 60)
+            self.gap = self.config_mgr.config_data.get("grid_gap", 5)
+            
+            # Kunci delay default mutlak di angka aman 20 detik
             self.config_mgr.set_value("launch_delay", 20)
         except Exception:
+            # Fallback memori jika objek config manager belum sepenuhnya terinisialisasi
             if hasattr(self.config_mgr, 'config_data'):
                 self.config_mgr.config_data["launch_delay"] = 20
+            self.start_x_base = 660
+            self.window_width = 280
+            self.window_height = 200
+            self.columns = 2
+            self.top_margin = 60
+            self.gap = 5
 
     def _execute_shell(self, command: str) -> str:
         """Eksekusi perintah internal dengan hak akses superuser root."""
@@ -70,15 +77,14 @@ class JoinManager:
         return len(pid) > 0
 
     def calculate_xml_coordinates(self, index: int) -> dict:
-        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi grid compact."""
-        cfg = self.grid_config
-        row = index // cfg["columns"]
-        col = index % cfg["columns"]
+        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi dinamis."""
+        row = index // self.columns
+        col = index % self.columns
         
-        left = cfg["start_x_base"] + (col * (cfg["window_width"] + cfg["gap"]))
-        top = cfg["top_margin"] + (row * (cfg["window_height"] + cfg["gap"]))
-        right = left + cfg["window_width"]
-        bottom = top + cfg["window_height"]
+        left = self.start_x_base + (col * (self.window_width + self.gap))
+        top = self.top_margin + (row * (self.window_height + self.gap))
+        right = left + self.window_width
+        bottom = top + self.window_height
         
         return {"left": left, "top": top, "right": right, "bottom": bottom}
 
@@ -193,7 +199,7 @@ class JoinManager:
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v4.2 - Micro Grid", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, f"╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   v4.5 - Size: {self.window_width}x{self.window_height}", cyan | curses.A_BOLD)
         
         # Bingkai Tabel Estetis KAERU
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
