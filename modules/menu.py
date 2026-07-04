@@ -1,9 +1,11 @@
 """
-DHub-Rejoin - Menu Module
+DHub-Rejoin - Menu Module (Fixed Buffer & Anti-Kickback)
 Author: Senior Python Developer
 Description: Handles the interactive main menu and routes user selections strictly based on choice.
 """
 
+import sys
+import time
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -24,7 +26,7 @@ class MainMenu:
         self.config_mgr = config_mgr
         self.logger = logger
         
-        # Inisialisasi sub-modul (Pastikan tidak ada fungsi launch yang terpicu di dalam __init__)
+        # Inisialisasi sub-modul aman tanpa memicu fungsi internal
         self.package_mgr = PackageManager(config_mgr, logger)
         self.settings_mgr = SettingsManager(config_mgr, logger)
         self.join_mgr = JoinManager(config_mgr, logger)
@@ -59,7 +61,7 @@ class MainMenu:
 
     def execute_choice(self, choice: str) -> bool:
         """
-        Mengeksekusi fungsi HANYA ketika angka menu dipilih oleh user.
+        Mengeksekusi fungsi HANYA ketika angka menu dipilih oleh user secara ketat.
         """
         if choice == "1":
             self.logger.info("Executing: Launch Application")
@@ -86,7 +88,14 @@ class MainMenu:
             console.print("\n[bold red][!] Shutdown Core Engine. Bye![/bold red]")
             return False
             
+        # PENCEGAHAN MENTAL: Bersihkan buffer input sebelum menahan layar
         if choice != "8":
-            input("\nTekan Enter untuk kembali ke Menu Utama...")
+            try:
+                sys.stdin.flush() # Flush sisa enter gaib di Termux
+            except Exception:
+                pass
+            print("\n")
+            console.print("[dim white]─────────────────────────────────────────────────[/dim white]")
+            Prompt.ask("[bold green]Tekan Enter untuk kembali ke Menu Utama[/bold green]", choices=[], default="")
             
         return True
