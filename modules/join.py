@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - True Kaeru Tools Integration Engine
+DHub-Rejoin - True Kaeru Visual Grid Clone Engine
 Author: Senior Python Developer
-Description: Hard-locked TUI status manager matching Kaeru framework standards, 
-             executing dynamic multi-window grid placements natively on Android 10+.
+Description: Hard-coded right-side clipping algorithms mimicking Kaeru Tools layout bounds
+             perfectly matched for DPI 600 landscape cloud configurations.
 """
 
 import time
@@ -25,14 +25,13 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # KAERU TOOLS CONFIGURATION MATRICES - OPTIMIZED FOR DPI 600 LANDSCAPE
+        # [MIMIC KAERU LAYOUT MATRIX]: Mengunci koordinat sisi kanan secara kaku layaknya screenshot
         self.grid_config = {
-            "start_x": 750,      # Sisi kiri bersih disisakan untuk monitoring Termux
-            "width": 380,        # Lebar proporsional jendela clone Roblox
-            "height": 260,       # Tinggi proporsional jendela clone Roblox
-            "cols": 3,           # Formasi maksimal 3 kolom kesamping
-            "gap": 10,           # Jeda spasi antar kotak (Garis pembatas rapi)
-            "margin_top": 80     # Batas atas aman dari status bar Redfinger
+            "termux_panel_width": 640,   # Sisi kiri 0-640 murni untuk panel Termux agar tidak tertutup
+            "window_width": 420,         # Lebar window Roblox kloningan
+            "window_height": 290,        # Tinggi window Roblox kloningan
+            "start_y": 0,                # Rapat dari batas atas layar
+            "gap": 2                     # Celah super tipis agar terlihat rapat dan clean
         }
         
         try:
@@ -67,46 +66,49 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def apply_kaeru_grid_position(self, pkg_name: str, index: int):
-        """
-        Mekanisme Utama Penataan Grid Kaeru Tools.
-        Menangkap Window token secara dinamis dan memaksa bounds berbaris simetris di sisi kanan.
-        """
+    def calculate_kaeru_bounds(self, index: int) -> str:
+        """Menghitung pembagian koordinat kanan-bawah persis seperti visualisasi Kaeru Tools."""
         cfg = self.grid_config
-        row = index // cfg["cols"]
-        col = index % cfg["cols"]
         
-        left = cfg["start_x"] + (col * (cfg["width"] + cfg["gap"]))
-        top = cfg["margin_top"] + (row * (cfg["height"] + cfg["gap"]))
+        # Susunan matematis: Penempatan bergeser ke kanan setelah Termux Panel Width selesai
+        col = index % 2
+        row = index // 2
+        
+        left = cfg["termux_panel_width"] + (col * (cfg["window_width"] + cfg["gap"]))
+        top = cfg["start_y"] + (row * (cfg["window_height"] + cfg["gap"]))
         right = left + cfg["width"]
         bottom = top + cfg["height"]
         
-        bounds_str = f"{left} {top} {right} {bottom}"
+        return f"{left} {top} {right} {bottom}"
+
+    def force_kaeru_grid_alignment(self, pkg_name: str, index: int):
+        """Memaksa alokasi task ID masuk ke dalam cetakan posisi Kaeru secara instan."""
+        bounds_str = self.calculate_kaeru_bounds(index)
         
-        # Berikan jeda waktu agar window ter-render penuh di sistem grafis
-        time.sleep(4.0)
+        # Berikan jeda waktu agar transisi loading activity Redfinger selesai
+        time.sleep(4.5)
         
-        # Ambil identitas Task ID unik milik package target
         for _ in range(15):
             if not self.is_monitoring:
                 break
+            
             task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord|Task' | grep {pkg_name} | head -n 1")
             if task_info:
                 try:
-                    task_id = [int(s) for s in task_info.split() if s.isdigit() and int(s) > 0][0]
+                    task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
                     
-                    # Eksekusi bypass level kernel Android 10+ ala Kaeru Tools
+                    # Tembak langsung sub-sistem WindowManager bawaan OS untuk mengunci bounds
                     self._execute_shell(f"cmd activity set-resizable {task_id} true")
                     self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
                     self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
+                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
                     break
                 except Exception:
                     pass
             time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
+        """Worker Daemon: Memantau status memori secara real-time (Online/Offline)."""
         time.sleep(5)
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
@@ -117,7 +119,7 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola siklus peluncuran bertahap dengan penundaan 20 detik anti-crash."""
+        """Siklus utama peluncuran sekuensial Kaeru Tools System."""
         total = len(clones)
         delay_cfg = 20
         
@@ -127,7 +129,6 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # Eksekusi intent peluncuran terpadu
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
@@ -140,16 +141,14 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Pemicu penataan posisi grid asinkron (Mekanisme Kaeru Grid System)
-            threading.Thread(target=self.apply_kaeru_grid_position, args=(pkg, idx), daemon=True).start()
+            # Eksekusi penataan posisi asinkron ala Kaeru Engine
+            threading.Thread(target=self.force_kaeru_grid_alignment, args=(pkg, idx), daemon=True).start()
             
             # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
             if idx < total - 1:
                 time.sleep(delay_cfg)
-                
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Kaeru Grid Engine successfully orchestrated {total} targets.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
@@ -166,13 +165,13 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
-        # Logo Teks Besar DHUB
+        # Logo Teks Besar KAERU Style
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v2.0", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v3.4.0", cyan | curses.A_BOLD)
         
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
         stdscr.addstr(8, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
@@ -221,7 +220,7 @@ class JoinManager:
         
         if not installed_clones:
             os.system("clear")
-            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox / Clone yang terdeteksi di sistem.\033[0m")
+            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox terdeteksi.\033[0m")
             return
 
         self.is_monitoring = True
@@ -253,5 +252,5 @@ class JoinManager:
             self.is_monitoring = False
             
         os.system("clear")
-        print("\033[93m[!] Proses monitoring disinkronkan. Kembali ke menu utama...\033[0m")
+        print("\033[93m[!] Monitoring selesai. Kembali ke menu utama...\033[0m")
         time.sleep(1)
