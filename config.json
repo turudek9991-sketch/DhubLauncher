@@ -1,6 +1,6 @@
 {
   "package": "",
-  "launch_delay": 20,
+  "launch_delay": 10,
   "theme": "dark",
   "discord_webhook": "",
   "autosave": true,
