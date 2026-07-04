@@ -1,18 +1,15 @@
 """
-DHub-Rejoin - Automated Daemon Monitor & Asynchronous Launcher (KAERU Pure Visual)
+DHub-Rejoin - Premium KAERU Visual Engine (Fixed Structure & Dual Column Layout)
 Author: Senior Python Developer
-Description: High-performance background logcat monitoring with unified table status reporting.
+Description: Delivers a clean, multi-threaded, non-duplicating terminal status monitor.
 """
 
 import time
 import subprocess
 import threading
+import sys
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
-from rich.live import Live
-from modules.webhook import WebhookManager
-from modules.arrange import ArrangeManager
 
 console = Console()
 
@@ -20,14 +17,17 @@ class JoinManager:
     def __init__(self, config_mgr, logger):
         self.config_mgr = config_mgr
         self.logger = logger
+        
+        # Penanganan impor lokal yang aman untuk menghindari circular dependency
+        from modules.webhook import WebhookManager
+        from modules.arrange import ArrangeManager
+        
         self.webhook_mgr = WebhookManager(config_mgr, logger)
         self.arrange_mgr = ArrangeManager(config_mgr, logger)
         
-        # Flag kontrol untuk thread pemantauan
         self.is_monitoring = False
         self.monitor_thread = None
-        # Variabel penampung status dinamis untuk tabel
-        self.engine_status = "[bold yellow]Initializing...[/bold yellow]"
+        self.engine_status = "Ready"
 
     def _execute_shell(self, command: str) -> bool:
         """Eksekusi perintah internal dengan hak akses superuser root."""
@@ -59,16 +59,11 @@ class JoinManager:
     def background_monitor_loop(self, target_pkg: str, place_id: str):
         """Daemon Worker: Memantau logcat perangkat untuk mendeteksi Crash/DC di latar belakang."""
         self.logger.info("Background logcat daemon monitoring loop activated.")
-        
-        # Bersihkan logcat lama agar tidak mendeteksi error masa lalu
         self._execute_shell("logcat -c")
         
-        # Pemicu awal masuk game
-        self.engine_status = "[bold green]Launching Game...[/bold green]"
+        self.engine_status = "Launched"
         self.trigger_intent_launch(target_pkg, place_id)
-        
-        # Set status ke mode mengawasi aktif
-        self.engine_status = "[bold green]Active Monitoring[/bold green]"
+        self.engine_status = "Online"
         
         logcat_cmd = f"su -c 'logcat | grep -E \"{target_pkg}|ContentProvider|Disconnected|died|ActivityManager: Crashing\"'"
         
@@ -81,52 +76,73 @@ class JoinManager:
                     time.sleep(0.5)
                     continue
                 
-                # Deteksi pola kegagalan koneksi atau force close
                 if any(kw in line for kw in ["died", "crash", "FORCE-CLOSE", "Disconnected", "ActivityManager: Process"]):
-                    self.logger.warning(f"DC Event Detected in logcat stream: {line.strip()}")
-                    self.engine_status = "[bold red]DC Detected! Rejoining...[/bold red]"
+                    self.logger.warning(f"DC Event Detected: {line.strip()}")
+                    self.webhook_mgr.send_status_embed(status="REJOINING", action_detail="DC detected by DHub Daemon.")
                     
-                    self.webhook_mgr.send_status_embed(status="REJOINING", action_detail="Network Disconnection / App Crash detected by DHub Daemon.")
-                    
-                    # Eksekusi pembersihan & force stop aplikasi
+                    self.engine_status = "Offline"
                     self._execute_shell(f"am force-stop {target_pkg}")
                     
-                    # Cooldown 5 detik, status di-update di tabel
                     for i in range(5, 0, -1):
-                        self.engine_status = f"[bold magenta]Cooldown ({i}s)...[/bold magenta]"
+                        self.engine_status = f"Cooldown ({i}s)"
                         time.sleep(1)
                         
-                    self.engine_status = "[bold cyan]Injecting Intent...[/bold cyan]"
+                    self.engine_status = "Launched"
                     self.trigger_intent_launch(target_pkg, place_id)
                     
-                    # Reset buffer logcat dan kembalikan ke monitoring aktif
                     self._execute_shell("logcat -c")
-                    self.engine_status = "[bold green]Active Monitoring[/bold green]"
+                    self.engine_status = "Online"
                     
                 time.sleep(0.1)
         except Exception as e:
-            self.logger.error(f"Error within background daemon monitor loop: {e}")
-            self.engine_status = "[bold red]Daemon Error[/bold red]"
+            self.logger.error(f"Error within background daemon loop: {e}")
+            self.engine_status = "Offline"
         finally:
             if process:
                 process.terminate()
 
-    def generate_dashboard_table(self, target_pkg: str, place_id: str, ram_info: str) -> Table:
-        """Membuat objek komponen tabel visual untuk rendering dinamis tanpa log numpuk."""
-        monitor_table = Table(box=None, padding=(0, 2))
-        monitor_table.add_column("TARGET APP / CLONE", style="bold white", width=25)
-        monitor_table.add_column("TARGET PLACE ID", style="bold yellow", width=18)
-        monitor_table.add_column("SYSTEM RAM", style="bold cyan", width=15)
-        monitor_table.add_column("ENGINE STATUS", style="bold green", width=25)
+    def print_kaeru_layout(self, kaeru_header: str, target_pkg: str, place_id: str, ram_info: str):
+        """Mencetak struktur tabel dua kolom murni secara manual dan membersihkan layar terminal."""
+        # Gunakan ANSI Escape Code untuk membersihkan layar secara instan dan efisien (Anti-Duplikasi)
+        sys.stdout.write("\033[H\033[2J")
+        sys.stdout.flush()
         
-        display_pid = place_id if place_id else "Global Launch"
-        monitor_table.add_row(target_pkg, display_pid, ram_info, self.engine_status)
-        return monitor_table
+        # Cetak Header Besar di Pucuk
+        console.print(kaeru_header)
+        
+        # Buat Struktur Tabel Dua Kolom Murni Sesuai Gambar Referensi
+        table = Table(box=None, padding=(0, 4), show_header=True, header_style="bold cyan")
+        table.add_column("PACKAGE", style="bold white", width=42)
+        table.add_column("STATUS", style="bold cyan", width=24)
+        
+        # Ambil delay konfigurasi saat ini
+        delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
+        
+        # Baris 1: Informasi Sistem Memori (RAM)
+        table.add_row("System Memory", f"Free: {ram_info}")
+        
+        # Baris 2: Informasi Delay Aktif
+        table.add_row("Launch Delay", f"{delay_cfg}s...")
+        
+        # Baris Pembatas Horizontal Kustom
+        table.add_row("─" * 42, "─" * 24)
+        
+        # Pewarnaan Status Dinamis
+        status_display = f"[bold green]{self.engine_status}[/bold green]" if self.engine_status in ["Online", "Launched"] else f"[bold magenta]{self.engine_status}[/bold magenta]"
+        if self.engine_status == "Offline":
+            status_display = "[bold red]Offline[/bold red]"
+        elif self.engine_status == "Ready":
+            status_display = "[white]Ready[/white]"
+            
+        # Baris 3: Informasi Target Package
+        # Catatan: Jika ingin menyuntikkan teks username khusus seperti (w1dnFarmer), Anda tinggal menambahkannya di parameter string di bawah
+        table.add_row(f"{target_pkg}", status_display)
+        
+        console.print(table)
+        console.print("\n[dim white]» Tekan Enter Kapan Saja Untuk Berhenti Pemantauan Core Engine...[/dim white]")
 
     def launch_app(self):
-        """Meluncurkan proses monitoring asinkron dengan visualisasi tabel tunggal yang bersih."""
-        console.clear()
-        
+        """Siklus utama peluncuran asinkron dengan visualisasi rendering terisolasi."""
         kaeru_header = (
             "[bold cyan]██████╗ ██╗  ██╗██╗   ██╗██████╗ \n"
             "██╔══██╗██║  ██║██║   ██║██╔══██╗\n"
@@ -134,31 +150,29 @@ class JoinManager:
             "██║  ██║██╔══██║██║   ██║██╔══██╗\n"
             "██████╔╝██║  ██║╚██████╔╝██████╔╝\n"
             "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ [/bold cyan]\n"
-            "            [bold white]Launcher v1.0 (Bypass Mode)[/bold white]\n"
+            "            [bold white]Launcher v1.0[/bold white]\n"
         )
-        console.print(kaeru_header)
         
         target_pkg = self.config_mgr.config_data.get("package", "")
         place_id = self.config_mgr.config_data.get("place_id", "")
-        delay = self.config_mgr.config_data.get("launch_delay", 3)
         
         if not target_pkg:
+            console.clear()
             console.print("[bold red][!] ERROR: Paket target kosong! Jalankan Scan terlebih dahulu.[/bold red]")
             return
 
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
 
-        # Manajemen siklus thread daemon yang aman
         if self.is_monitoring:
             self.is_monitoring = False
             if self.monitor_thread:
                 self.monitor_thread.join(timeout=1)
 
         self.is_monitoring = True
-        self.engine_status = f"[bold yellow]Delay Counter ({delay}s)...[/bold yellow]"
+        self.engine_status = "Ready"
         
-        # Membuka Thread baru di latar belakang agar antarmuka termux tidak membeku (Anti-Freeze)
+        # Membuka thread latar belakang
         self.monitor_thread = threading.Thread(
             target=self.background_monitor_loop,
             args=(target_pkg, place_id),
@@ -166,18 +180,27 @@ class JoinManager:
         )
         self.monitor_thread.start()
 
-        # Gunakan Rich Live display untuk memantau visual secara statis (Log tidak akan nge-print di bawahnya)
-        with Live(self.generate_dashboard_table(target_pkg, place_id, ram_info), refresh_per_second=2) as live:
-            # Loop pembaruan visual tabel secara berkala tanpa merusak baris terminal bawah
-            while self.is_monitoring:
-                live.update(self.generate_dashboard_table(target_pkg, place_id, ram_info))
+        # Engine loop rendering manual (Anti-Freeze & Anti-Duplicate)
+        # Mengeliminasi component Live rich agar kompatibel penuh dengan lingkungan termux cloud
+        try:
+            # Thread pembantu untuk menangani interaksi stop input non-blocking
+            stop_event = threading.Event()
+            
+            def wait_for_user_exit():
+                input()
+                stop_event.set()
                 
-                # Trick bypass input non-blocking: periksa apakah user menekan enter di thread utama shell
-                # Namun karena kita ingin interaksi manual untuk keluar menu, kita biarkan loop berjalan 
-                # Dan membaca flag kontrol utama.
+            input_thread = threading.Thread(target=wait_for_user_exit, daemon=True)
+            input_thread.start()
+            
+            while not stop_event.is_set():
+                # Render ulang data secara bersih di baris konsol yang sama
+                self.print_kaeru_layout(kaeru_header, target_pkg, place_id, ram_info)
                 time.sleep(0.5)
                 
-            live.update(self.generate_dashboard_table(target_pkg, place_id, ram_info))
-
-        console.print("[bold yellow][!] Pengawasan dihentikan. Kembali ke panel kendali utama...[/bold yellow]")
+        finally:
+            self.is_monitoring = False
+            
+        console.clear()
+        console.print("[bold yellow][!] Pengawasan dinonaktifkan. Kembali ke panel utama...[/bold yellow]")
         time.sleep(1)
