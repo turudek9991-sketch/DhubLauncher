@@ -4,5 +4,6 @@
   "theme": "dark",
   "discord_webhook": "",
   "autosave": true,
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "place_id": "95206881"
 }
