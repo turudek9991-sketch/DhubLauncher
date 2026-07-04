@@ -1,14 +1,15 @@
 """
-DHub-Rejoin - Compact Visual Engine (Landscape Fix)
+DHub-Rejoin - Premium KAERU Curses Visual Engine
 Author: Senior Python Developer
-Description: Minimalist textual layout to prevent layout shattering on low-column terminal environments.
+Description: Uses the standard python curses library to lock the terminal window dimensions, 
+             preventing ANY layout shattering or flickering when switching apps.
 """
 
 import time
 import subprocess
 import threading
 import os
-import sys
+import curses
 
 class JoinManager:
     def __init__(self, config_mgr, logger):
@@ -94,36 +95,68 @@ class JoinManager:
             if process:
                 process.terminate()
 
-    def print_kaeru_layout(self, target_pkg: str, ram_info: str):
-        """Merender layout minimalis yang sangat stabil tanpa memicu pembungkusan baris."""
-        os.system("clear")
+    def print_kaeru_curses(self, stdscr, target_pkg: str, ram_info: str):
+        """Merender UI kokoh bergaris mirip KAERU menggunakan engine curses tingkat rendah."""
+        # Bersihkan window curses internal secara total
+        stdscr.erase()
         
-        # Mengganti logo besar dengan teks ringkas yang aman dari pemotongan layar
-        print("\033[96m====================================================\033[0m")
-        print("\033[96m                 DHUB LAUNCHER v1.0                 \033[0m")
-        print("\033[96m====================================================\033[0m")
+        # Inisialisasi warna dasar jika didukung terminal
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_CYAN, -1)
+        curses.init_pair(2, curses.COLOR_WHITE, -1)
+        curses.init_pair(3, curses.COLOR_GREEN, -1)
+        curses.init_pair(4, curses.COLOR_YELLOW, -1)
+        curses.init_pair(5, curses.COLOR_RED, -1)
         
+        cyan = curses.color_pair(1)
+        white = curses.color_pair(2)
+        
+        # Pilih warna berdasarkan status saat ini
+        if self.engine_status == "Online":
+            status_color = curses.color_pair(3) | curses.A_BOLD
+        elif self.engine_status in ["Launched", "Ready"]:
+            status_color = curses.color_pair(4) | curses.A_BOLD
+        else:
+            status_color = curses.color_pair(5) | curses.A_BOLD
+
         delay_cfg = self.config_mgr.config_data.get("launch_delay", 3)
         
-        if self.engine_status in ["Online", "Launched"]:
-            status_color = f"\033[92m{self.engine_status}\033[0m"
-        elif self.engine_status == "Offline":
-            status_color = f"\033[91m{self.engine_status}\033[0m"
-        else:
-            status_color = f"\033[95m{self.engine_status}\033[0m"
-
-        # Menggunakan format cetak baris sederhana yang kebal dari penyusutan tty shell
-        print(" PACKAGE                                      STATUS")
-        print(" --------------------------------------------------")
-        print(f" System Memory                                Free: {ram_info}")
-        print(f" Launch Delay                                 {delay_cfg}s...")
-        print(" --------------------------------------------------")
-        print(f" {target_pkg:<44} {status_color}")
-        print(" --------------------------------------------------")
-        print("\n\033[37m » Tekan Enter Untuk Berhenti Pemantauan Core Engine...\033[0m")
+        # Judul Atas
+        stdscr.addstr(0, 2, "=== DHUB AUTOMATION LAUNCHER ===", cyan | curses.A_BOLD)
+        
+        # Render Tabel Garis Kotak Khas KAERU
+        stdscr.addstr(2, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
+        stdscr.addstr(3, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
+        stdscr.addstr(3, 2, "PACKAGE", white | curses.A_BOLD)
+        stdscr.addstr(3, 45, "STATUS", cyan | curses.A_BOLD)
+        
+        stdscr.addstr(4, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        
+        # Baris System Memory
+        stdscr.addstr(5, 0, "│ System Memory                            │                        │", cyan)
+        stdscr.addstr(5, 45, f"Free: {ram_info}", white)
+        
+        # Baris Launch Delay
+        stdscr.addstr(6, 0, "│ Launch Delay                             │                        │", cyan)
+        stdscr.addstr(6, 45, f"{delay_cfg}s...", white)
+        
+        stdscr.addstr(7, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        
+        # Baris Data Akun Clone / Package target
+        display_pkg = target_pkg[:38] if len(target_pkg) > 38 else target_pkg
+        stdscr.addstr(8, 0, "│                                          │                        │", cyan)
+        stdscr.addstr(8, 2, display_pkg, white)
+        stdscr.addstr(8, 45, self.engine_status, status_color)
+        
+        stdscr.addstr(9, 0, "└──────────────────────────────────────────┴────────────────────────┘", cyan)
+        
+        stdscr.addstr(11, 0, "» Tekan 'q' untuk keluar dari mode monitoring...", white | curses.A_DIM)
+        
+        # Refresh screen fisik secara realtime
+        stdscr.refresh()
 
     def launch_app(self):
-        """Siklus utama monitoring."""
+        """Titik masuk siklus monitoring terisolasi menggunakan curses wrapper."""
         target_pkg = self.config_mgr.config_data.get("package", "")
         place_id = self.config_mgr.config_data.get("place_id", "")
         
@@ -143,6 +176,7 @@ class JoinManager:
         self.is_monitoring = True
         self.engine_status = "Ready"
         
+        # Jalankan daemon pengecekan logcat di latar belakang
         self.monitor_thread = threading.Thread(
             target=self.background_monitor_loop,
             args=(target_pkg, place_id),
@@ -150,20 +184,29 @@ class JoinManager:
         )
         self.monitor_thread.start()
 
+        # Panggil curses wrapper utama agar terminal masuk ke mode grafis terkunci
+        def curses_main(stdscr):
+            # Hilangkan kedipan kursor terminal asli
+            curses.curs_set(0)
+            # Set deteksi input menjadi non-blocking agar perulangan visual tidak macet
+            stdscr.nodelay(True)
+            stdscr.timeout(100)
+            
+            while self.is_monitoring:
+                self.print_kaeru_curses(stdscr, target_pkg, ram_info)
+                
+                # Cek apakah pengguna menekan tombol 'q' untuk keluar
+                try:
+                    key = stdscr.getch()
+                    if key == ord('q') or key == ord('Q') or key == 10: # 10 adalah kode enter
+                        break
+                except Exception:
+                    pass
+                    
+                time.sleep(0.5)
+
         try:
-            stop_event = threading.Event()
-            
-            def wait_for_user_exit():
-                input()
-                stop_event.set()
-                
-            input_thread = threading.Thread(target=wait_for_user_exit, daemon=True)
-            input_thread.start()
-            
-            while not stop_event.is_set():
-                self.print_kaeru_layout(target_pkg, ram_info)
-                time.sleep(0.7)
-                
+            curses.wrapper(curses_main)
         finally:
             self.is_monitoring = False
             
