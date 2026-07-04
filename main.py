@@ -41,8 +41,13 @@ def main():
         
         # LOOP UTAMA: Hanya jalankan apa yang dipilih oleh user!
         while True:
-            # Tampilkan Banner Utama
-            show_banner(config_mgr)
+            # Panggil JoinManager untuk deteksi package aktif sebelum banner dicetak
+            from modules.join import JoinManager
+            join_mgr = JoinManager(config_mgr, logger)
+            active_list = join_mgr.get_all_active_targets_string()
+            
+            # Tampilkan Banner Utama dengan info target aktif
+            show_banner(config_mgr, active_list)
             
             # Tampilkan Menu Interaktif dan Dapatkan Pilihan User
             choice = menu.display_main_menu()
