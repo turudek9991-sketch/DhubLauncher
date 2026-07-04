@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - True Kaeru Visual Grid Clone Engine (Bug & Layout Fixed)
+DHub-Rejoin - App Cloner XML Grid Engine (Kaeru Method Replica)
 Author: Senior Python Developer
-Description: Fixes the KeyError bug and forces proper alignment by managing 
-             both Termux and Roblox windowing states concurrently.
+Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
+             shared_preferences XML layout properties before issuing launch state intents.
 """
 
 import time
@@ -10,6 +10,7 @@ import subprocess
 import os
 import curses
 import threading
+import xml.etree.ElementTree as ET
 
 class JoinManager:
     def __init__(self, config_mgr, logger):
@@ -25,14 +26,15 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [MIMIC KAERU LAYOUT CONFIGURATION - DPI 600 OPTIMIZED]
+        # [KAERU MATRIX - DPI 600 OPTIMIZED]
+        # Koordinat dihitung kaku agar membagi sisi kanan secara simetris layaknya Kaeru Tools
         self.grid_config = {
-            "termux_width": 580,         # Lebar jendela Termux di sisi kiri
-            "termux_height": 600,        # Tinggi jendela Termux
-            "window_width": 430,         # Lebar window Roblox
-            "window_height": 280,        # Tinggi window Roblox
-            "start_y": 10,               
-            "gap": 5                     
+            "start_x_base": 720,        # Menjauh dari area kiri (Termux aman dari tumpukan)
+            "window_width": 420,        # Lebar proporsional jendela Roblox melayang
+            "window_height": 280,       # Tinggi proporsional jendela Roblox melayang
+            "columns": 2,               # Formasi 2 kolom ke samping di wilayah kanan
+            "top_margin": 60,           # Batas aman dari status bar atas
+            "gap": 6
         }
         
         try:
@@ -52,7 +54,7 @@ class JoinManager:
             return ""
 
     def get_all_roblox_clones(self) -> list:
-        """Memindai sistem secara instan untuk mencari semua package dengan unsur 'roblox'."""
+        """Memindai sistem secara instan untuk mencari semua package yang terinstal dengan unsur 'roblox'."""
         raw_packages = self._execute_shell("pm list packages")
         clones = []
         for line in raw_packages.split("\n"):
@@ -67,62 +69,82 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def fix_termux_position(self):
-        """Memaksa jendela Termux bergeser rapat ke sisi kiri layar (Bypass Layout Overlap)."""
-        try:
-            cfg = self.grid_config
-            # Cari Task ID milik Termux secara dinamis
-            termux_info = self._execute_shell("dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord|Task' | grep com.termux | head -n 1")
-            if termux_info:
-                termux_id = [int(s) for s in termux_info.split() if s.isdigit() and int(s) > 0][0]
-                bounds_str = f"0 {cfg['start_y']} {cfg['termux_width']} {cfg['termux_height']}"
-                self._execute_shell(f"cmd activity set-windowing-mode {termux_id} 5")
-                self._execute_shell(f"am task resize {termux_id} {bounds_str}")
-        except Exception:
-            pass
-
-    def calculate_kaeru_bounds(self, index: int) -> str:
-        """Menghitung pembagian koordinat sisi kanan secara presisi [FIXED KEYERROR]."""
+    def calculate_xml_coordinates(self, index: int) -> dict:
+        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi grid Kaeru."""
         cfg = self.grid_config
+        row = index // cfg["columns"]
+        col = index % cfg["columns"]
         
-        # Susunan grid 2 kolom di sisi kanan setelah jendela Termux selesai
-        col = index % 2
-        row = index // 2
-        
-        left = cfg["termux_width"] + (col * (cfg["window_width"] + cfg["gap"]))
-        top = cfg["start_y"] + (row * (cfg["window_height"] + cfg["gap"]))
+        left = cfg["start_x_base"] + (col * (cfg["window_width"] + cfg["gap"]))
+        top = cfg["top_margin"] + (row * (cfg["window_height"] + cfg["gap"]))
         right = left + cfg["window_width"]
         bottom = top + cfg["window_height"]
         
-        return f"{left} {top} {right} {bottom}"
+        return {"left": left, "top": top, "right": right, "bottom": bottom}
 
-    def force_kaeru_grid_alignment(self, pkg_name: str, index: int):
-        """Memaksa alokasi task ID masuk ke dalam cetakan posisi Kaeru secara instan."""
-        bounds_str = self.calculate_kaeru_bounds(index)
+    def inject_coordinates_to_xml(self, pkg_name: str, coords: dict) -> bool:
+        """
+        [THE TRUE LAUNCHER REVOLUTION]:
+        Menyalin file preference XML ke direktori lokal Termux, memodifikasi tag koordinat 
+        App Cloner secara presisi, lalu mengembalikannya ke folder data root dengan hak akses penuh.
+        """
+        remote_xml_path = f"/data/user/0/{pkg_name}/shared_prefs/{pkg_name}_preferences.xml"
+        local_temp_path = f"/tmp/{pkg_name}_prefs.xml"
         
-        # Tunggu sampai render grafis awal selesai
-        time.sleep(5.0)
+        # 1. Pastikan folder /tmp lokal Termux tersedia
+        os.makedirs("/tmp", exist_ok=True)
         
-        for _ in range(15):
-            if not self.is_monitoring:
-                break
+        # 2. Tarik file XML preferences milik aplikasi clone target dari folder root ke lokal Termux
+        self._execute_shell(f"cp {remote_xml_path} {local_temp_path}")
+        self._execute_shell(f"chmod 777 {local_temp_path}")
+        
+        if not os.path.exists(local_temp_path) or os.path.getsize(local_temp_path) == 0:
+            return False # Fallback jika file preferensi belum terinisialisasi oleh App Cloner
             
-            task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord|Task' | grep {pkg_name} | head -n 1")
-            if task_info:
-                try:
-                    task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
+        try:
+            tree = ET.parse(local_temp_path)
+            root = tree.getroot()
+            
+            # Map target key XML preferensi penataan posisi milik App Cloner
+            target_keys = {
+                "app_cloner_current_window_left": str(coords["left"]),
+                "app_cloner_current_window_top": str(coords["top"]),
+                "app_cloner_current_window_right": str(coords["right"]),
+                "app_cloner_current_window_bottom": str(coords["bottom"])
+            }
+            
+            # Perbarui nilai int yang sudah ada atau buat baru jika belum terdaftar
+            elements_updated = 0
+            for key, value in target_keys.items():
+                found = False
+                for elem in root.findall("int"):
+                    if elem.get("name") == key:
+                        elem.set("value", value)
+                        found = True
+                        elements_updated += 1
+                        break
+                if not found:
+                    new_elem = ET.SubElement(root, "int", name=key, value=value)
+                    elements_updated += 1
                     
-                    self._execute_shell(f"cmd activity set-resizable {task_id} true")
-                    self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
-                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.5)
+            # Simpan modifikasi XML secara lokal di Termux
+            tree.write(local_temp_path, encoding="utf-8", xml_declaration=True)
+            
+            # 3. Kembalikan file XML yang sudah dimodifikasi ke direktori root data Android
+            self._execute_shell(f"cp {local_temp_path} {remote_xml_path}")
+            # Setel kepemilikan owner & permission kaku (chown) agar Android mau membacanya saat startup
+            self._execute_shell(f"chmod 660 {remote_xml_path}")
+            
+            # Hapus file sampah lokal Termux
+            if os.path.exists(local_temp_path):
+                os.remove(local_temp_path)
+                
+            return True
+        except Exception:
+            return False
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
+        """Worker Daemon: Memantau status memori secara real-time (Online/Offline)."""
         time.sleep(5)
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
@@ -133,11 +155,9 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
+        """Siklus utama orkestrasi mutakhir berbasis modifikasi XML injector."""
         total = len(clones)
         delay_cfg = 20
-        
-        # Kunci posisi Termux ke kiri dulu agar layout kanan bersih semenjak start
-        self.fix_termux_position()
         
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
@@ -145,6 +165,16 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
+            # 1. Pastikan aplikasi target dimatikan paksa (Force Stop) agar state memori bersih 
+            # dan App Cloner wajib membaca ulang file XML saat inisialisasi awal
+            self._execute_shell(f"am force-stop {pkg}")
+            time.sleep(0.5)
+            
+            # 2. Hitung posisi grid Kaeru dan suntikkan langsung ke dalam file preferences.xml
+            coords = self.calculate_xml_coordinates(idx)
+            self.inject_coordinates_to_xml(pkg, coords)
+            
+            # 3. Tembakkan intent untuk meluncurkan Roblox clone
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
@@ -157,14 +187,15 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            threading.Thread(target=self.force_kaeru_grid_alignment, args=(pkg, idx), daemon=True).start()
+            # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
+            # Jeda 20 detik penuh antar device peluncuran agar aman bebas dari crash memori
             if idx < total - 1:
                 time.sleep(delay_cfg)
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
-        """Merender TUI Panel legendaris KAERU yang kokoh dan rapi."""
+        """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
         stdscr.erase()
         
         curses.use_default_colors()
@@ -178,28 +209,34 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
+        # Logo Teks Besar DHUB
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v3.4.0", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v4.0", cyan | curses.A_BOLD)
         
+        # Bingkai Tabel Estetis KAERU
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
         stdscr.addstr(8, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
         stdscr.addstr(8, 2, "PACKAGE", white | curses.A_BOLD)
         stdscr.addstr(8, 45, "STATUS", cyan | curses.A_BOLD)
         stdscr.addstr(9, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
+        # Informasi Konfigurasi Engine
         stdscr.addstr(10, 0, "│ System Memory                            │                        │", cyan)
         stdscr.addstr(10, 45, f"Free: {ram_info}", white)
         
         stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
         stdscr.addstr(11, 45, "20s (Locked)", white)
         
-        stdscr.addstr(12, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        stdscr.addstr(12, 0, "│ Engine Mode                              │                        │", cyan)
+        stdscr.addstr(12, 45, "AppCloner XML Grid Injection", white)
         
-        current_row = 13
+        stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
+        
+        current_row = 14
         for idx, pkg in enumerate(clones[:8]):
             stdscr.addstr(current_row, 0, "│                                          │                        │", cyan)
             display_name = pkg[:38]
@@ -232,11 +269,12 @@ class JoinManager:
         
         if not installed_clones:
             os.system("clear")
-            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox terdeteksi.\033[0m")
+            print("\033[91m[!] Gagal: Tidak ada aplikasi Roblox Clone terdeteksi di perangkat.\033[0m")
             return
 
         self.is_monitoring = True
 
+        # Luncurkan background orchestrator thread
         threading.Thread(
             target=self.launch_all_instances,
             args=(installed_clones, place_id),
@@ -264,5 +302,5 @@ class JoinManager:
             self.is_monitoring = False
             
         os.system("clear")
-        print("\033[93m[!] Monitoring selesai. Kembali ke menu utama...\033[0m")
+        print("\033[93m[!] Proses monitoring disinkronkan. Kembali ke menu utama...\033[0m")
         time.sleep(1)
