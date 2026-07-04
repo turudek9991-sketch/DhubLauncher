@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - App Cloner XML Grid Engine (Local FS Fix)
+DHub-Rejoin - App Cloner XML Grid Engine (Super Compact Frame Fix)
 Author: Senior Python Developer
 Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
-             shared_preferences XML layout properties using local Termux home directory buffers.
+             shared_preferences XML layout properties using micro right-side bounds.
 """
 
 import time
@@ -26,14 +26,15 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [KAERU MATRIX - DPI 600 OPTIMIZED]
+        # [SUPER COMPACT KAERU MATRIX - DPI 600 HARD LOCK]
+        # Ukuran dan margin disusutkan maksimal agar fit sempurna di frame Redfinger
         self.grid_config = {
-            "start_x_base": 720,        # Menjauh dari area kiri (Termux aman dari tumpukan)
-            "window_width": 420,        # Lebar proporsional jendela Roblox melayang
-            "window_height": 280,       # Tinggi proporsional jendela Roblox melayang
-            "columns": 2,               # Formasi 2 kolom ke samping di wilayah kanan
+            "start_x_base": 660,        # Geser merapat ke Termux agar sisi kanan tidak luber keluar frame
+            "window_width": 280,        # SUPER MINI: Lebar proporsional window melayang
+            "window_height": 200,       # SUPER MINI: Tinggi proporsional window melayang
+            "columns": 2,               # Formasi tetap 2 kolom ke samping di wilayah kanan
             "top_margin": 60,           # Batas aman dari status bar atas
-            "gap": 6
+            "gap": 5                    # Celah minimalis antar jendela
         }
         
         try:
@@ -69,7 +70,7 @@ class JoinManager:
         return len(pid) > 0
 
     def calculate_xml_coordinates(self, index: int) -> dict:
-        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi grid Kaeru."""
+        """Menghitung koordinat Rectangle (Left, Top, Right, Bottom) berdasarkan konfigurasi grid compact."""
         cfg = self.grid_config
         row = index // cfg["columns"]
         col = index % cfg["columns"]
@@ -82,18 +83,11 @@ class JoinManager:
         return {"left": left, "top": top, "right": right, "bottom": bottom}
 
     def inject_coordinates_to_xml(self, pkg_name: str, coords: dict) -> bool:
-        """
-        [THE TRUE LAUNCHER REVOLUTION]:
-        Modifikasi file preferensi XML App Cloner dengan aman memanfaatkan buffer home internal Termux 
-        untuk menghindari kendala error Read-only File System.
-        """
+        """Modifikasi file preferensi XML App Cloner dengan memanfaatkan buffer home internal Termux."""
         remote_xml_path = f"/data/user/0/{pkg_name}/shared_prefs/{pkg_name}_preferences.xml"
-        
-        # [FIXED DIRECTORY]: Menggunakan direktori home Termux asli agar kebal error sistem file read-only
         local_home = "/data/data/com.termux/files/home"
         local_temp_path = f"{local_home}/{pkg_name}_prefs.xml"
         
-        # Ambil file XML asli dari folder data internal Android ke lokal Termux
         self._execute_shell(f"cp {remote_xml_path} {local_temp_path}")
         self._execute_shell(f"chmod 777 {local_temp_path}")
         
@@ -121,10 +115,8 @@ class JoinManager:
                 if not found:
                     ET.SubElement(root, "int", name=key, value=value)
                     
-            # Simpan secara lokal di home Termux
             tree.write(local_temp_path, encoding="utf-8", xml_declaration=True)
             
-            # Kembalikan file hasil edit ke root sistem Android
             self._execute_shell(f"cp {local_temp_path} {remote_xml_path}")
             self._execute_shell(f"chmod 660 {remote_xml_path}")
             
@@ -157,7 +149,6 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # Force Stop dulu agar App Cloner terpaksa membaca ulang XML baru pada fase startup
             self._execute_shell(f"am force-stop {pkg}")
             time.sleep(0.5)
             
@@ -202,7 +193,7 @@ class JoinManager:
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v4.0", cyan | curses.A_BOLD)
+        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v4.2 - Micro Grid", cyan | curses.A_BOLD)
         
         # Bingkai Tabel Estetis KAERU
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
