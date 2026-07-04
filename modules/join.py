@@ -30,8 +30,8 @@ class JoinManager:
         # Ukuran dan margin disusutkan maksimal agar fit sempurna di frame Redfinger
         self.grid_config = {
             "start_x_base": 660,        # Geser merapat ke Termux agar sisi kanan tidak luber keluar frame
-            "window_width": 280,        # SUPER MINI: Lebar proporsional window melayang
-            "window_height": 200,       # SUPER MINI: Tinggi proporsional window melayang
+            "window_width": 180,        # SUPER MINI: Lebar proporsional window melayang
+            "window_height": 100,       # SUPER MINI: Tinggi proporsional window melayang
             "columns": 2,               # Formasi tetap 2 kolom ke samping di wilayah kanan
             "top_margin": 60,           # Batas aman dari status bar atas
             "gap": 5                    # Celah minimalis antar jendela
