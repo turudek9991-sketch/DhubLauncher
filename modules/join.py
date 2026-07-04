@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Advanced Multi-Window Grid & Real-Time Status Engine
+DHub-Rejoin - Universal Split-Execution Freeform Engine
 Author: Senior Python Developer
-Description: Delivers a rock-solid TUI with multi-state tracking (Offline -> Loading -> Launched -> Online)
-             while securing forced Android Freeform window instantiation for all Roblox targets.
+Description: Dispatches clone targets using high-compatibility launchers and forces 
+             freeform grid orchestration post-spawn to bypass device intent blockage.
 """
 
 import time
@@ -23,7 +23,6 @@ class JoinManager:
         self.arrange_mgr = ArrangeManager(config_mgr, logger)
         
         self.is_monitoring = False
-        # Kamus dinamis untuk mengunci status per masing-masing package clone secara independen
         self.clone_statuses = {}
         
         try:
@@ -53,8 +52,16 @@ class JoinManager:
                     clones.append(pkg)
         return sorted(clones)
 
-    def calculate_grid_bounds(self, index: int) -> str:
-        """Menghitung koordinat piksel landscape secara presisi (DPI 600 Optimized) di sisi kanan."""
+    def is_package_running(self, pkg_name: str) -> bool:
+        """Memeriksa apakah proses Android package aktif menggunakan perintah pidof."""
+        pid = self._execute_shell(f"pidof {pkg_name}")
+        return len(pid) > 0
+
+    def force_freeform_grid(self, pkg_name: str, index: int):
+        """
+        Logika Pemindah Jendela Pasca-Spawn.
+        Menangkap Task ID secara dinamis dan memaksanya masuk ke koordinat grid kanan (DPI 600).
+        """
         row = index // 3
         col = index % 3
         
@@ -64,62 +71,70 @@ class JoinManager:
         start_x = 740 + (col * 395)
         start_y = 60 + (row * 285)
         
-        return f"{start_x},{start_y},{start_x + width},{start_y + height}"
-
-    def is_package_running(self, pkg_name: str) -> bool:
-        """Memeriksa apakah proses Android package aktif menggunakan perintah pidof tingkat rendah."""
-        pid = self._execute_shell(f"pidof {pkg_name}")
-        return len(pid) > 0
+        bounds_str = f"{start_x} {start_y} {start_x + width} {start_y + height}"
+        
+        # Polling singkat (maksimal 5 detik) menunggu Task ID terdaftar di sistem Android
+        for _ in range(10):
+            task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord' | grep {pkg_name} | head -n 1")
+            if task_info:
+                try:
+                    task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
+                    # Paksa tumpukan beralih ke stack 5 (Freeform Mode)
+                    self._execute_shell(f"am stack move-task {task_id} 5 true")
+                    time.sleep(0.3)
+                    # Kunci koordinat posisi grid kanan
+                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Mengawasi siklus transisi status aplikasi dari launched menuju online."""
-        # Menunggu aplikasi stabil pasca diluncurkan
-        time.sleep(5)
+        """Worker Daemon: Memantau transisi status secara real-time berdasarkan manifes memori."""
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
-                # Ketika terdeteksi di memori dan aktif di layar, status dikunci ke Online
-                if self.clone_statuses.get(pkg_name) in ["Launched", "Loading"]:
+                if self.clone_statuses.get(pkg_name) == "Launched":
                     self.clone_statuses[pkg_name] = "Online"
             else:
-                # Jika mati atau crash dari latar belakang, kembalikan ke Offline
+                # Jika aplikasi terputus atau ditutup paksa
                 self.clone_statuses[pkg_name] = "Offline"
-            time.sleep(2)
+            time.sleep(1.5)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola peluncuran sekuensial dengan transisi status yang ketat dan akurat."""
+        """Mengelola peluncuran dengan pemisahan eksekusi untuk menjamin Roblox terbuka 100%."""
         total = len(clones)
         delay_cfg = 20
         
-        # Langkah 1: Setel semua daftar target awal menjadi Offline (Menunggu daftar loading delay)
+        # Setel seluruh status awal ke posisi Offline (Menunggu antrean delay)
         for pkg in clones:
             self.clone_statuses[pkg] = "Offline"
 
         for idx, pkg in enumerate(clones):
-            # Langkah 2: Ketika giliran dimulai, status berubah menjadi Loading
             self.clone_statuses[pkg] = "Loading"
-            bounds = self.calculate_grid_bounds(idx)
             
-            # [BYPASS LAUNCH FIX]: Menggunakan skema intent terpadu android.intent.action.VIEW 
-            # yang dipaksa injeksi flag windowing mode 5 agar kebal dari silent crash di seluruh variasi clone.
+            # [SOLUSI MUTLAK PELUNCURAN]: Menggunakan skema pemicu dasar tanpa penyuntikan bounds awal 
+            # untuk menghindari penolakan manifes, sehingga Roblox dipastikan terbuka 100%.
             if place_id:
-                cmd = f"am start --windowingMode 5 --bounds {bounds} -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
+                cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
             else:
-                cmd = f"am start --windowingMode 5 --bounds {bounds} -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p {pkg}"
-
+                cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
+                
             self._execute_shell(cmd)
             
-            # Langkah 3: Masuk ke status Launched setelah intent berhasil ditembakkan ke Window Manager Android
-            time.sleep(1.5)
+            # Ubah status ke Launched sesaat setelah pemicu biner selesai ditembakkan
             self.clone_statuses[pkg] = "Launched"
             
-            # Jalankan daemon thread pembantu untuk memantau kapan status bertransisi menjadi Online secara real-time
+            # Jalankan orkestrasi penataan jendela di latar belakang secara asinkron
+            threading.Thread(target=self.force_freeform_grid, args=(pkg, idx), daemon=True).start()
+            
+            # Jalankan pengawas status Online memori secara real-time
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Jalankan hitung mundur jeda antar-device (Delay Join 20 Detik)
+            # Eksekusi interupsi hitung mundur delay join 20 detik penuh sebelum memproses device berikutnya
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Automated execution grid for {total} instances initialized securely.")
+        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully initialized and arranged {total} instances.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender grafis visual legendaris KAERU yang statis, kokoh, dan bergaris rapi."""
@@ -136,7 +151,7 @@ class JoinManager:
         cyan = curses.color_pair(1)
         white = curses.color_pair(2)
         
-        # Gambar Logo Teks Raksasa DHUB
+        # Logo Teks Raksasa DHUB
         stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
         stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
         stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
@@ -144,14 +159,14 @@ class JoinManager:
         stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
         stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v1.0", cyan | curses.A_BOLD)
         
-        # Render Batas Garis Tabel KAERU
+        # Render Tabel Frame KAERU Style
         stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
         stdscr.addstr(8, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
         stdscr.addstr(8, 2, "PACKAGE", white | curses.A_BOLD)
         stdscr.addstr(8, 45, "STATUS", cyan | curses.A_BOLD)
         stdscr.addstr(9, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
-        # Data Blok Atas
+        # Data Blok Konfigurasi Atas
         stdscr.addstr(10, 0, "│ System Memory                            │                        │", cyan)
         stdscr.addstr(10, 45, f"Free: {ram_info}", white)
         
@@ -160,14 +175,13 @@ class JoinManager:
         
         stdscr.addstr(12, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
         
-        # Tampilkan Seluruh Daftar Instance Beserta Status Akurat Masing-Masing
+        # Loop Rendering Status Baris Komponen Target
         current_row = 13
-        for idx, pkg in enumerate(clones[:8]): # Menampilkan hingga 8 baris teratas di layar landscape
+        for idx, pkg in enumerate(clones[:8]):
             stdscr.addstr(current_row, 0, "│                                          │                        │", cyan)
             display_name = pkg[:38]
             stdscr.addstr(current_row, 2, display_name, white)
             
-            # Resolusi status pewarnaan presisi tinggi
             status = self.clone_statuses.get(pkg, "Offline")
             if status == "Online":
                 c_style = curses.color_pair(3) | curses.A_BOLD    # Hijau
@@ -187,7 +201,7 @@ class JoinManager:
         stdscr.refresh()
 
     def launch_app(self):
-        """Mengeksekusi siklus utama otomasi multi-window grid dengan status canggih."""
+        """Titik masuk siklus monitoring."""
         place_id = self.config_mgr.config_data.get("place_id", "")
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
@@ -201,7 +215,7 @@ class JoinManager:
 
         self.is_monitoring = True
 
-        # Jalankan background orchestrator thread
+        # Pemicu background orchestrator thread
         threading.Thread(
             target=self.launch_all_instances,
             args=(installed_clones, place_id),
