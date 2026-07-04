@@ -8,7 +8,7 @@ import time
 import subprocess
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, BarColumn, TextColumn, PercentageColumn
+from rich.progress import Progress, BarColumn, TextColumn
 
 console = Console()
 
@@ -37,11 +37,11 @@ class OptimizeManager:
             
         console.print("[bold cyan]Cleaning Cache[/bold cyan]")
         
-        # Implementasi Progress Bar sesuai spesifikasi
+        # Perbaikan di sini: Menggunakan TextColumn untuk menampilkan persentase secara universal
         with Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(bar_width=40, complete_style="magenta", finished_style="green"),
-            PercentageColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             transient=True
         ) as progress:
             
@@ -57,10 +57,7 @@ class OptimizeManager:
             
             # Eksekusi perintah pembersihan internal (jika diizinkan sistem)
             try:
-                # Membersihkan file cache internal Termux sebagai bagian dari optimasi global
                 subprocess.run("rm -rf ~/.cache/*", shell=True, capture_output=True)
-                
-                # Jika perangkat memiliki hak akses root, perintah di bawah ini akan sukses mengeksekusi aplikasi target
                 if target_pkg != "System Temp Logs & Termux Environment":
                     subprocess.run(f"pm clear {target_pkg} cache", shell=True, capture_output=True, timeout=5)
             except Exception as e:
