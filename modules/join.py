@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - Native Android Freeform Grid Engine
+DHub-Rejoin - Native Package Resolver Grid Engine
 Author: Senior Python Developer
-Description: Forces all Roblox instances to launch directly inside native freeform bounds 
-             on the right side of the screen at DPI 600, completely eliminating positioning lag.
+Description: Forces all Roblox clones to execute via package resolution activity mappings, 
+             strictly transforming them into a right-aligned freeform layout at DPI 600.
 """
 
 import time
@@ -26,15 +26,14 @@ class JoinManager:
         self.clone_statuses = {}
         
         # Grid Configuration - OPTIMIZED FOR DPI 600 LANDSCAPE
-        # Menghitung porsi layar kanan dengan ketat
         self.grid_config = {
-            "start_x_base": 720,        # Batas awal sisi kanan layar (Termux aman di sisi kiri)
-            "window_width": 380,        # Lebar proporsional window Roblox melayang
-            "window_height": 270,       # Tinggi proporsional window Roblox melayang
-            "columns": 3,               # Maksimal 3 kolom kesamping
-            "top_margin": 60,           # Margin atas agar tidak menabrak status bar
-            "gap_x": 15,                
-            "gap_y": 15,
+            "start_x_base": 730,        # Sisi kiri bersih untuk Termux
+            "window_width": 380,        
+            "window_height": 260,       
+            "columns": 3,               
+            "top_margin": 70,           
+            "gap_x": 12,                
+            "gap_y": 12,
         }
         
         try:
@@ -69,8 +68,8 @@ class JoinManager:
         pid = self._execute_shell(f"pidof {pkg_name}")
         return len(pid) > 0
 
-    def get_grid_bounds_string(self, index: int) -> str:
-        """Menghitung koordinat bounding box persegi panjang (left,top,right,bottom)."""
+    def calculate_grid_bounds(self, index: int) -> str:
+        """Menghitung koordinat piksel landscape secara presisi di wilayah kanan layar."""
         cfg = self.grid_config
         row = index // cfg["columns"]
         col = index % cfg["columns"]
@@ -80,21 +79,51 @@ class JoinManager:
         right = left + cfg["window_width"]
         bottom = top + cfg["window_height"]
         
-        # Format Android untuk parameter --bounds
-        return f"{left},{top},{right},{bottom}"
+        return f"{left} {top} {right} {bottom}"
+
+    def force_freeform_layout(self, pkg_name: str, index: int):
+        """
+        Logika Pengatur Posisi Jendela Pasca Aplikasi Terbuka.
+        Menggunakan kombinasi cmd activity tingkat rendah untuk memaksa windowing mode 5.
+        """
+        bounds_str = self.calculate_grid_bounds(index)
+        
+        # Polling tunggu maksimal 10 detik sampai jendela Roblox terdaftar di ActivityManager
+        for _ in range(20):
+            if not self.is_monitoring:
+                break
+                
+            task_info = self._execute_shell(f"dumpsys activity activities | grep -E 'TaskRecord|ActivityRecord' | grep {pkg_name} | head -n 1")
+            if task_info:
+                try:
+                    task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
+                    
+                    # Ubah windowing mode task ke mode 5 (Freeform melayang)
+                    self._execute_shell(f"cmd activity set-windowing-mode {task_id} 5")
+                    time.sleep(0.4)
+                    
+                    # Atur koordinat presisi ke sisi kanan layar
+                    self._execute_shell(f"am task resize {task_id} {bounds_str}")
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.5)
 
     def monitor_live_state_daemon(self, pkg_name: str):
-        """Worker Daemon: Memantau transisi status memori secara real-time (Online/Offline)."""
+        """Worker Daemon: Memantau status memori secara real-time (Online/Offline) pasca diluncurkan."""
+        # Berikan jeda napas 5 detik awal saat status Launched
+        time.sleep(5)
         while self.is_monitoring:
             if self.is_package_running(pkg_name):
-                if self.clone_statuses.get(pkg_name) == "Launched":
+                # Ubah status ke Online hanya jika proses benar-benar bertahan di memori RAM
+                if self.clone_statuses.get(pkg_name) in ["Launched", "Loading"]:
                     self.clone_statuses[pkg_name] = "Online"
             else:
                 self.clone_statuses[pkg_name] = "Offline"
-            time.sleep(1.5)
+            time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola peluncuran dengan pemaksaan Freeform Bounds asli sejak inisialisasi awal."""
+        """Mengelola siklus peluncuran dengan pemaksaan fokus aktivitas sistem."""
         total = len(clones)
         delay_cfg = 20
         
@@ -103,30 +132,36 @@ class JoinManager:
 
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
-            bounds_str = self.get_grid_bounds_string(idx)
             
-            # [SOLUSI FINAL NATIVE LAUNCH MODE]:
-            # Kita injeksikan parameter '--windowingMode 5' dan '--bounds' langsung di dalam perintah am start.
-            # Ini memaksa Android melahirkan Roblox langsung dalam bentuk kotak floating yang rapi di kanan
-            # tanpa perlu digeser-geser manual atau di-resize lagi pasca terbuka (Bypass Bug Redfinger).
+            # [BYPASS UTAMA BUBBLE CRASH REDFINGER]:
+            # Daripada memakai intent am start mentah yang sering diblokir, kita gunakan dumpsys resolver 
+            # untuk menembak langsung modul peluncuran utama aplikasi yang terdaftar resmi di sistem Android.
             if place_id:
-                cmd = f"am start --windowingMode 5 --bounds {bounds_str} -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
+                cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
-                cmd = f"am start --windowingMode 5 --bounds {bounds_str} -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p {pkg}"
+                # Cari komponen MainActivity resmi milik package clone tersebut secara dinamis
+                main_act = self._execute_shell(f"cmd package resolve-activity --brief {pkg} | tail -n 1")
+                if main_act and "/" in main_act:
+                    cmd = f"am start -n {main_act} --activity-brought-to-front"
+                else:
+                    cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
                 
             self._execute_shell(cmd)
             
-            # Ubah status ke Launched sesaat setelah pemicu biner dikirim ke Window Manager
+            # Ubah status ke Launched sesaat setelah pemicu sukses ditembakkan
             self.clone_statuses[pkg] = "Launched"
             
-            # Jalankan monitor status Online berbasis RAM secara realtime
+            # Pancing perubahan tata letak jendela freeform secara asinkron
+            threading.Thread(target=self.force_freeform_layout, args=(pkg, idx), daemon=True).start()
+            
+            # Aktifkan daemon pemantau status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Terapkan jeda 20 detik penuh antar-device agar emulator tidak overload/freeze
+            # Jeda Cooldown 20 detik penuh antar device agar aman dari force close
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
-        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully deployed {total} native freeform instances into layout.")
+        self.webhook_mgr.send_status_embed(status="SUCCESS", action_detail=f"Successfully deployed {total} instances into dynamic grid control.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar."""
