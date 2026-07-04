@@ -1,8 +1,8 @@
 """
-DHub-Rejoin - True Stack Interrupter Grid Engine (Redfinger Special Edition)
+DHub-Rejoin - Android 10+ Hard-Locked Freeform Organizer
 Author: Senior Python Developer
-Description: Forces fullscreen Roblox instances to transition into Freeform Stacks (Stack 5)
-             and locks their layout dimensions on the right half of DPI 600 screens.
+Description: Forces window resizability flags directly on the activity record 
+             and utilizes modern cmd window boundary locks for Redfinger.
 """
 
 import time
@@ -79,13 +79,13 @@ class JoinManager:
         right = left + cfg["window_width"]
         bottom = top + cfg["window_height"]
         
-        # Format Android: left top right bottom
+        # Format Android 10+: left top right bottom
         return f"{left} {top} {right} {bottom}"
 
     def force_freeform_transformation(self, pkg_name: str, index: int):
         """
-        Logika Pemindah Tumpukan Jendela Jauh Lebih Agresif.
-        Memaksa transisi dari Fullscreen Stack menuju Freeform Stack (Stack 5) kemudian merubah ukuran.
+        Logika Pemindah Tumpukan Jendela Android 10+.
+        Memaksa resizing di tingkat kernel ActivityRecord lalu menaruhnya ke bounds kanan.
         """
         bounds_str = self.calculate_grid_bounds(index)
         
@@ -99,12 +99,19 @@ class JoinManager:
                 try:
                     task_id = [int(s) for s in task_info.split() if s.isdigit()][0]
                     
-                    # [INTERUPSI STRATEGIS]:
-                    # 1. Hancurkan status fullscreen, paksa task ID pindah ke Freeform Stack (Stack 5)
-                    self._execute_shell(f"am stack move-task {task_id} 5 true")
-                    time.sleep(0.5)
+                    # [ANDROID 10 HARD COMPATIBILITY BYPASS]:
+                    # 1. Paksa sistem mengizinkan resizable pada Task ID tersebut secara real-time
+                    self._execute_shell(f"cmd activity set-resizable {task_id} true")
+                    time.sleep(0.2)
                     
-                    # 2. Set bounds kaku agar nangkring rapi di grid kanan layar
+                    # 2. Set mode freeform via activity manager modern
+                    self._execute_shell(f"cmd activity set-windowing-mode {task_id} 5")
+                    time.sleep(0.4)
+                    
+                    # 3. Kunci koordinat bounds menggunakan orkestrator Window Manager bawaan Android 10
+                    self._execute_shell(f"cmd window set-bounds {task_id} {bounds_str}")
+                    
+                    # Fallback lama jika cmd window ditolak kernel custom Redfinger
                     self._execute_shell(f"am task resize {task_id} {bounds_str}")
                     break
                 except Exception:
@@ -123,7 +130,6 @@ class JoinManager:
             time.sleep(2.0)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        """Mengelola siklus peluncuran bertahap dengan penundaan 20 detik anti-crash."""
         total = len(clones)
         delay_cfg = 20
         
@@ -133,7 +139,6 @@ class JoinManager:
         for idx, pkg in enumerate(clones):
             self.clone_statuses[pkg] = "Loading"
             
-            # Gunakan jalur peluncuran universal yang terbukti sukses membuka Roblox sebelumnya
             if place_id:
                 cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
             else:
@@ -146,13 +151,10 @@ class JoinManager:
             self._execute_shell(cmd)
             self.clone_statuses[pkg] = "Launched"
             
-            # Jalankan background thread untuk menginterupsi stack dan menata posisi grid kanan
+            # Jalankan orkestrator pemindahan bounds secara asinkron
             threading.Thread(target=self.force_freeform_transformation, args=(pkg, idx), daemon=True).start()
-            
-            # Jalankan monitor status Online
             threading.Thread(target=self.monitor_live_state_daemon, args=(pkg,), daemon=True).start()
             
-            # Terapkan jeda 20 detik penuh antar-device agar emulator tidak overload
             if idx < total - 1:
                 time.sleep(delay_cfg)
                 
@@ -161,7 +163,6 @@ class JoinManager:
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar."""
         stdscr.erase()
-        
         curses.use_default_colors()
         curses.init_pair(1, curses.COLOR_CYAN, -1)
         curses.init_pair(2, curses.COLOR_WHITE, -1)
@@ -206,13 +207,13 @@ class JoinManager:
             
             status = self.clone_statuses.get(pkg, "Offline")
             if status == "Online":
-                c_style = curses.color_pair(3) | curses.A_BOLD    # Hijau
+                c_style = curses.color_pair(3) | curses.A_BOLD
             elif status == "Launched":
-                c_style = curses.color_pair(4) | curses.A_BOLD  # Kuning
+                c_style = curses.color_pair(4) | curses.A_BOLD
             elif status == "Loading":
-                c_style = curses.color_pair(6) | curses.A_BOLD   # Magenta
+                c_style = curses.color_pair(6) | curses.A_BOLD
             else:
-                c_style = curses.color_pair(5) | curses.A_DIM     # Merah
+                c_style = curses.color_pair(5) | curses.A_DIM
                 
             stdscr.addstr(current_row, 45, status, c_style)
             current_row += 1
@@ -223,7 +224,6 @@ class JoinManager:
         stdscr.refresh()
 
     def launch_app(self):
-        """Titik masuk utama eksekusi."""
         place_id = self.config_mgr.config_data.get("place_id", "")
         device_data = self.arrange_mgr.fetch_device_data()
         ram_info = device_data.get("ram", "Unknown")
@@ -237,7 +237,6 @@ class JoinManager:
 
         self.is_monitoring = True
 
-        # Jalankan background orchestrator
         threading.Thread(
             target=self.launch_all_instances,
             args=(installed_clones, place_id),
