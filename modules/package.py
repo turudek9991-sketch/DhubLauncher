@@ -1,5 +1,5 @@
 """
-DHub-Rejoin - Package Manager Module (Optimized for Roblox & Clones)
+DHub-Rejoin - Package Manager Module (Optimized & Bug Free)
 Author: Senior Python Developer
 Description: Scans and filters Android app packages explicitly targeting Roblox and its cloned variations.
 """
@@ -55,15 +55,13 @@ class PackageManager:
         """
         console.print("[yellow][*] Memindai database aplikasi di perangkat... Mohon tunggu...[/yellow]")
         
-        # Eksekusi perintah pm list packages untuk menarik seluruh manifes sistem
         raw_output = self._execute_shell("pm list packages")
         
-        # Jalur simulasi fallback jika terdeteksi lingkungan non-Android atau kosong
+        # Jalur simulasi fallback jika di lingkungan non-Android atau kosong
         if not raw_output:
             return [
-                {"name": "com.roblox.client", "version": "2.615.637", "status": "Original"},
-                {"name": "com.roblox.client.clone1", "version": "2.615.637", "status": "Clone Instance 1"},
-                {"name": "com.roblox.client.clone2", "version": "2.615.637", "status": "Clone Instance 2"}
+                {"name": "com.roblox.client", "version": "2.615.637", "status": "Original App"},
+                {"name": "com.roblox.seiyv", "version": "Unknown", "status": "Clone Detected"}
             ]
 
         lines = raw_output.split("\n")
@@ -73,11 +71,10 @@ class PackageManager:
             if line.startswith("package:"):
                 pkg_name = line.replace("package:", "").strip()
                 
-                # [FILTER DETEKSI CLONE]: Memastikan kata 'roblox' ada di dalam string nama package
+                # Filter deteksi clone Roblox
                 if pkg_name and "roblox" in pkg_name.lower():
                     version = self.get_package_version(pkg_name)
                     
-                    # Menentukan label status apakah app utama atau hasil kloning
                     if pkg_name == "com.roblox.client":
                         status_label = "Original App"
                     else:
@@ -101,10 +98,10 @@ class PackageManager:
         packages = self.scan_installed_packages()
         
         if not packages:
-            console.print("[bold red][!] Tidak ada package berunsur 'roblox' atau aplikasinya yang terdeteksi di perangkat ini.[/bold red]")
+            console.print("[bold red][!] Tidak ada package berunsur 'roblox' terdeteksi di perangkat ini.[/bold red]")
             return
 
-        # Konstruksi struktur tabel visual menggunakan Rich
+        # Konstruksi tabel visual menggunakan Rich
         table = Table(title="Daftar Target Roblox & Kloning Aktif", header_style="bold magenta")
         table.add_column("No", justify="center", style="cyan")
         table.add_column("Nama Package Aplikasi", justify="left", style="white")
@@ -115,7 +112,9 @@ class PackageManager:
             table.add_row(str(idx), pkg["name"], pkg["version"], pkg["status"])
             
         console.print(table)
-        console.print(f"\n[bold Total Terdeteksi:][/bold] {len(packages)} Package Varian Roblox\n")
+        
+        # PERBAIKAN BUG TAG DI SINI (Memperbaiki error closing tag rich)
+        console.print(f"\n[bold]Total Terdeteksi:[/bold] {len(packages)} Package Varian Roblox\n")
         
         choice = Prompt.ask(
             "[bold yellow]Pilih Nomor Package untuk disimpan ke Config (atau ketik '0' untuk batal)[/bold yellow]",
@@ -127,7 +126,6 @@ class PackageManager:
             if 1 <= idx_choice <= len(packages):
                 selected_pkg = packages[idx_choice - 1]["name"]
                 
-                # Tulis data ke config global
                 self.config_mgr.set_value("package", selected_pkg)
                 self.logger.info(f"Package target switched to: {selected_pkg}")
                 
