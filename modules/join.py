@@ -127,10 +127,11 @@ class JoinManager:
             daemon=True
         ).start()
 
-        console = Console()
-        with Live(self._generate_layout(installed_clones, ram_info), screen=True, transient=True, refresh_per_second=4) as live:
+        console = Console() # Pastikan console diinisialisasi
+        console.clear() # Bersihkan layar sebelum memulai Live display
+        with Live(self._generate_layout(installed_clones, ram_info), refresh_per_second=4, vertical_overflow="visible") as live:
             # TODO: Add keyboard listener to exit with 'q'
-            while self.is_monitoring:
+            while self.is_monitoring: # Loop monitoring utama
                 try:
                     self.clone_statuses = self.launcher_engine.get_statuses()
                     live.update(self._generate_layout(installed_clones, ram_info))
