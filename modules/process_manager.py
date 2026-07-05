@@ -8,9 +8,8 @@ class ProcessManager:
     def run(self, command: str) -> str:
         """Eksekusi perintah internal dengan hak akses superuser root."""
         try:
-            result = subprocess.run(["su", "-c", command], capture_output=True, text=True, timeout=10)
-            if result.returncode != 0 and result.stderr.strip():
-                self.logger.error(f"Root Execution failed [{command}]: {result.stderr.strip()}")
+            root_command = f"su -c '{command}'"
+            result = subprocess.run(root_command, shell=True, capture_output=True, text=True, timeout=10)
             return result.stdout.strip()
         except Exception as e:
             self.logger.error(f"Root Execution failed: {e}")
