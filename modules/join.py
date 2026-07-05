@@ -58,41 +58,55 @@ class JoinManager:
         else:
             self.logger.info("Launcher engine is already running. Skipping initial launch.")
 
-    def _generate_status_table(self, clones: list) -> Table:
-        """Membuat tabel status instance yang modern dan bersih."""
-        table = Table(box=None, expand=True)
-        table.add_column("PACKAGE", style="cyan", no_wrap=True, width=45)
+    def _generate_status_table(self, clones: list) -> Panel:
+        """Membangun tabel status instance yang premium dan informatif."""
+        table = Table(
+            title="Autonomous Multi-Instance Engine",
+            header_style="bold cyan",
+            border_style="dim white",
+            show_header=True,
+            box=None,
+            expand=True
+        )
+        table.add_column("PACKAGE", style="cyan", no_wrap=True, width=35)
         table.add_column("STATUS", style="white", width=15)
-        table.add_column("PID", style="dim white", justify="left")
+        table.add_column("HEALTH", justify="center", style="white")
+        table.add_column("RETRY", justify="center", style="yellow")
+        table.add_column("UPTIME", justify="right", style="dim white")
 
         status_styles = {
             PackageStatus.Online: ("● Online", "bold green"),
             PackageStatus.Launching: ("● Launching", "bold yellow"),
             PackageStatus.Loading: ("● Loading", "bold magenta"),
-            PackageStatus.Restarting: ("● Restarting", "bold yellow"),
-            PackageStatus.Error: ("● Error", "bold red"),
-            PackageStatus.Offline: ("● Offline", "dim white"),
+            PackageStatus.Restarting: ("RECOVERING", "bold yellow"),
+            PackageStatus.Error: ("ERROR", "bold red"),
+            PackageStatus.Offline: ("OFFLINE", "dim white"),
         }
 
         for pkg in clones:
-            status = self.clone_statuses.get(pkg, PackageStatus.Offline)
-            status_text, style = status_styles.get(status, ("● Unknown", "dim white"))
-            
-            pid = self.proc.run(f"pidof {pkg}").strip() or "----"
+            status_obj = self.clone_statuses.get(pkg, {"status": PackageStatus.Offline, "uptime": 0, "retries": 0, "health": 0})
+            status = status_obj.get("status", PackageStatus.Offline)
+            status_text, style = status_styles.get(status, ("UNKNOWN", "dim white"))
 
-            table.add_row(pkg, f"[{style}]{status_text}[/]", pid)
-        
-        return table
+            uptime_seconds = status_obj.get("uptime", 0)
+            uptime_str = time.strftime('%H:%M:%S', time.gmtime(uptime_seconds))
+            retries = status_obj.get("retries", 0)
+            health = status_obj.get("health", 0)
+
+            table.add_row(
+                pkg,
+                f"[{style}]{status_text}[/]",
+                f"{health}%",
+                str(retries),
+                uptime_str
+            )
+        return Panel(table, title="[bold white]DHUB LAUNCHER PRO[/bold white]", border_style="cyan", expand=True)
 
     def _generate_layout(self, clones: list, ram_info: str) -> Layout:
         """Membangun layout TUI yang dinamis dan premium."""
-        layout = Layout(
-            Panel(
-                self._generate_status_table(clones),
-                title="[bold green]DHUB LAUNCHER[/bold green] - [cyan]INSTANCE MONITOR[/cyan]",
-                subtitle="[dim white]Tekan [bold]CTRL+C[/bold] untuk keluar dari monitoring[/dim white]"
-            )
-        )
+        # Footer bisa ditambahkan di sini nanti dengan info CPU, RAM, dll.
+        layout = Layout(name="main")
+        layout["main"].update(self._generate_status_table(clones))
         return layout
 
     def launch_app(self):
