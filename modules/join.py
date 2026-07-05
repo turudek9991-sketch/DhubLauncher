@@ -35,23 +35,9 @@ class JoinManager:
         self.is_monitoring = False
         self.clone_statuses = {}
         
-        # [SUPER COMPACT KAERU MATRIX - DPI 600 HARD LOCK]
-        # Ukuran dan margin disusutkan maksimal agar fit sempurna di frame Redfinger
-        self.grid_config = {
-            "start_x_base": 660,        # Geser merapat ke Termux agar sisi kanan tidak luber keluar frame
-            "window_width": 180,        # SUPER MINI: Lebar proporsional window melayang
-            "window_height": 100,       # SUPER MINI: Tinggi proporsional window melayang
-            "columns": 2,               # Formasi tetap 2 kolom ke samping di wilayah kanan
-            "top_margin": 60,           # Batas aman dari status bar atas
-            "gap": 5                    # Celah minimalis antar jendela
-        }
-        self.grid_mgr = GridManager(self.grid_config)
-        self.xml_mgr = XMLManager(self.proc)
+        # Instance LauncherEngine yang sudah ada dari MainMenu
         self.launcher_engine = launcher_engine
 
-        # SUNTIKKAN manajer yang benar ke engine yang sudah ada!
-        self.launcher_engine.set_managers(grid_manager=self.grid_mgr, xml_manager=self.xml_mgr)
-        
         try:
             self.config_mgr.set_value("launch_delay", 5)
         except Exception:
