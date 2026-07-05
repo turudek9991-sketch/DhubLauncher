@@ -7,6 +7,7 @@ Description: Handles the interactive main menu and routes user selections strict
 import sys
 import time
 from rich.console import Console
+from rich.text import Text
 from rich.panel import Panel
 from rich.prompt import Prompt
 
@@ -44,22 +45,40 @@ class MainMenu:
         """
         Menampilkan menu utama ke terminal dengan layout modern.
         """
-        menu_text = (
-            "[bold cyan][01][/bold cyan] Launch Application (Auto Rejoin)\n"
-            "[bold cyan][02][/bold cyan] Scan & Auto-Save Package\n"
-            "[bold cyan][03][/bold cyan] Optimize Storage (Clear Cache)\n"
-            "[bold cyan][04][/bold cyan] Device Information Report\n"
-            "[bold cyan][05][/bold cyan] Settings Configuration\n"
-            "[bold cyan][06][/bold cyan] Discord Webhook Connectivity Test\n"
-            "[bold cyan][07][/bold cyan] View System Logs Stream\n"
-            "[bold cyan][08][/bold cyan] Exit Core Engine"
+        menu_items = {
+            "1": "Launch All Roblox",
+            "2": "Package Manager",
+            "3": "Optimize Storage",
+            "4": "Device Information",
+            "5": "Settings",
+            "6": "Discord Webhook",
+            "7": "View Logs",
+            "0": "Exit"
+        }
+
+        menu_text = Text(justify="left")
+        for key, value in menu_items.items():
+            menu_text.append(f"    [bold cyan]{key.zfill(2)}[/bold cyan] [white]▶[/white] [dim white]{value}[/dim white]\n\n")
+
+        header = (
+            "\n[bold white]DHUB LAUNCHER PRO[/bold white]\n\n"
+            "[dim white]Professional Roblox Multi Launcher[/dim white]\n"
         )
-        
-        console.print(Panel(menu_text, title="[bold green] CONTROL PANEL [/bold green]", border_style="cyan", expand=False))
-        
+
+        panel = Panel(
+            menu_text,
+            title=header,
+            title_align="center",
+            border_style="cyan",
+            expand=False,
+            padding=(1, 2)
+        )
+
+        console.print(panel)
+
         choice = Prompt.ask(
-            "[bold yellow]DHub Input[/bold yellow]", 
-            choices=["1", "2", "3", "4", "5", "6", "7", "8"], 
+            " [dim white]Select Menu >[/dim white]",
+            choices=["1", "2", "3", "4", "5", "6", "7", "0"],
             default="1"
         )
         return choice
@@ -81,7 +100,7 @@ class MainMenu:
             self.logger.info("Executing: Device Info")
             self.arrange_mgr.display_device_info()
         elif choice == "5":
-            self.logger.info("Executing: Settings Submenu")
+            self.logger.info("Executing: Settings")
             self.settings_mgr.open_settings()
         elif choice == "6":
             self.logger.info("Executing: Discord Test")
@@ -89,13 +108,13 @@ class MainMenu:
         elif choice == "7":
             self.logger.info("Executing: View Logs")
             self.utils_mgr.view_logs()
-        elif choice == "8":
+        elif choice == "0":
             console.print("\n[bold red][!] Shutdown Core Engine. Bye![/bold red]")
             return False
             
         # PENCEGAHAN MENTAL: Bersihkan buffer input sebelum menahan layar
         # Hentikan engine hanya jika keluar dari aplikasi, bukan dari menu join
-        if choice != "8":
+        if choice != "0":
             try:
                 sys.stdin.flush() # Flush sisa enter gaib di Termux
             except Exception:
