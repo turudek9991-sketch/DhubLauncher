@@ -15,12 +15,12 @@ from modules.process_manager import ProcessManager
 from modules.status import PackageStatus
 from modules.xml_manager import XMLManager
 
-from rich.align import Align
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
-from rich.layout import Layout
 from rich.panel import Panel
+from rich.text import Text
+from rich.columns import Columns
 
 class JoinManager:
     def __init__(self, config_mgr, logger, launcher_engine: LauncherEngine):
@@ -59,21 +59,21 @@ class JoinManager:
         else:
             self.logger.info("Launcher engine is already running. Skipping initial launch.")
 
-    def _generate_status_table(self, clones: list) -> Table:
-        """Membangun tabel status instance yang premium dan informatif."""
+    def _generate_main_table(self, clones: list) -> Table:
+        """Membangun tabel utama yang berisi semua informasi UI."""
         table = Table(
-            header_style="bold white",
-            border_style="dim",
-            show_header=True,
-            expand=True,
-            row_styles=["", "dim"]
+            box=None,
+            expand=False,
+            padding=0,
+            show_header=False
         )
-        table.add_column("ID", justify="center", style="cyan")
-        table.add_column("Package", no_wrap=True, width=40, style="white")
-        table.add_column("Status", width=15)
-        table.add_column("Retry", justify="center")
-        table.add_column("Uptime", justify="center")
-        table.add_column("Health", justify="right")
+        table.add_column("main_content")
+
+        # --- Header ---
+        header_text = Text("\nDHUB LAUNCHER PRO\n", style="bold cyan")
+        header_text.append("Autonomous Multi-Instance Engine\n", style="dim white")
+        table.add_row(header_text)
+        table.add_row(Text("─" * 50, style="dim"))
 
         status_styles = {
             PackageStatus.Online: ("● ONLINE", "bold green"),
@@ -84,70 +84,41 @@ class JoinManager:
             PackageStatus.Offline: ("OFFLINE", "dim white"),
         }
 
+        # --- Instance Monitor Table ---
+        instance_table = Table(box=None, show_header=True, header_style="bold dim white", expand=False)
+        instance_table.add_column("ID", width=3)
+        instance_table.add_column("PACKAGE", width=25, no_wrap=True)
+        instance_table.add_column("STATUS", width=12)
+        instance_table.add_column("UPTIME", width=10, justify="right")
+
         for idx, pkg in enumerate(clones, 1):
             status_obj = self.clone_statuses.get(pkg, {"status": PackageStatus.Offline, "uptime": 0, "retries": 0, "health": 0})
             status = status_obj.get("status", PackageStatus.Offline)
             status_text, style = status_styles.get(status, ("UNKNOWN", "dim white"))
-
             uptime_seconds = status_obj.get("uptime", 0)
             uptime_str = time.strftime('%H:%M:%S', time.gmtime(uptime_seconds))
-            retries = str(status_obj.get("retries", 0))
-            health = f"{status_obj.get('health', 0)}%"
 
-            table.add_row(
+            instance_table.add_row(
                 str(idx).zfill(2),
-                pkg,
+                pkg.replace("com.roblox.", ""), # Ringkas nama package
                 f"[{style}]{status_text}[/]",
-                retries,
-                uptime_str,
-                health
+                uptime_str
             )
-        return table
-
-    def _generate_layout(self, clones: list, ram_info: str) -> Layout:
-        """Membangun layout TUI yang dinamis dan premium."""
-        layout = Layout()
-
-        header_text = """
-██████╗ ██╗  ██╗██╗   ██╗██████╗ 
-██╔══██╗██║  ██║██║   ██║██╔══██╗
-██║  ██║███████║██║   ██║██████╔╝
-██║  ██║██╔══██║██║   ██║██╔══██╗
-██████╔╝██║  ██║╚██████╔╝██████╔╝
-╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ 
-"""
         
-        header = Align.center(
-            f"[bold cyan]{header_text}[/bold cyan]\n"
-            "[dim white]DHUB LAUNCHER PRO v2.0 • Multi Instance Automation[/dim white]"
-        )
+        table.add_row(Panel(instance_table, border_style="dim", title="Instance Monitor", title_align="left"))
 
-        # Placeholder untuk panel info atas, bisa diisi nanti
-        info_panel = Panel(
-            " ",
-            border_style="dim",
-            title="[bold white]Engine Status & Device Monitor[/bold white]",
-            title_align="left"
-        )
+        # --- Footer ---
+        healthy_workers = sum(1 for s in self.clone_statuses.values() if s.get("status") == PackageStatus.Online)
+        total_workers = len(clones)
+        footer_text = Text(f"Workers: {healthy_workers}/{total_workers}  |  Self-Healing: ACTIVE\n", style="dim white")
+        footer_text.append("Press CTRL+C to exit monitoring", style="bold dim white")
+        table.add_row(Text("─" * 50, style="dim"))
+        table.add_row(footer_text)
 
-        instance_panel = Panel(
-            self._generate_status_table(clones),
-            border_style="dim",
-            title="[bold white]Instance Monitor[/bold white]",
-            title_align="left"
-        )
-
-        layout.split_column(
-            Layout(header, size=9),
-            Layout(info_panel, size=5),
-            Layout(instance_panel, name="main")
-        )
-        return layout
+        return table
 
     def launch_app(self):
         place_id = self.config_mgr.config_data.get("place_id", "")
-        device_data = self.arrange_mgr.fetch_device_data()
-        ram_info = device_data.get("ram", "Unknown")
 
         installed_clones = self.launcher_engine.scan_packages()
         
@@ -166,12 +137,12 @@ class JoinManager:
         ).start()
 
         console = Console()
-        with Live(self._generate_layout(installed_clones, ram_info), screen=True, transient=True, refresh_per_second=4) as live:
+        with Live(self._generate_main_table(installed_clones), screen=True, transient=True, refresh_per_second=2) as live:
             # TODO: Add keyboard listener to exit with 'q'
             while self.is_monitoring: # Loop monitoring utama
                 try:
                     self.clone_statuses = self.launcher_engine.get_statuses()
-                    live.update(self._generate_layout(installed_clones, ram_info))
+                    live.update(self._generate_main_table(installed_clones))
                     time.sleep(0.5)
                 except KeyboardInterrupt:
                     self.is_monitoring = False
