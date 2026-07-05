@@ -85,25 +85,13 @@ class JoinManager:
 
     def _generate_layout(self, clones: list, ram_info: str) -> Layout:
         """Membangun layout TUI yang dinamis dan premium."""
-        layout = Layout()
-        header_text = """
-██████╗ ██╗  ██╗██╗   ██╗██████╗ 
-██╔══██╗██║  ██║██║   ██║██╔══██╗
-██║  ██║███████║██║   ██║██████╔╝
-██║  ██║██╔══██║██║   ██║██╔══██╗
-██████╔╝██║  ██║╚██████╔╝██████╔╝
-╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   [dim white]Launcher v2.0 - @dimsgti[/]
-        """
-        footer_text = "[dim white]DHUB Launcher Professional Edition | Self Healing Enabled | Press [bold]Q[/bold] to Exit Monitoring[/]"
-
-        layout.split(
-            Layout(name="header", size=8),
-            Layout(name="main"),
-            Layout(name="footer", size=3),
+        layout = Layout(
+            Panel(
+                self._generate_status_table(clones),
+                title="[bold green]DHUB LAUNCHER[/bold green] - [cyan]INSTANCE MONITOR[/cyan]",
+                subtitle="[dim white]Tekan [bold]CTRL+C[/bold] untuk keluar dari monitoring[/dim white]"
+            )
         )
-        layout["header"].update(f"[bold cyan]{header_text}[/]")
-        layout["main"].update(self._generate_status_table(clones))
-        layout["footer"].update(footer_text)
         return layout
 
     def launch_app(self):
@@ -127,9 +115,8 @@ class JoinManager:
             daemon=True
         ).start()
 
-        console = Console() # Pastikan console diinisialisasi
-        console.clear() # Bersihkan layar sebelum memulai Live display
-        with Live(self._generate_layout(installed_clones, ram_info), refresh_per_second=4, vertical_overflow="visible") as live:
+        console = Console()
+        with Live(self._generate_layout(installed_clones, ram_info), screen=True, transient=True, refresh_per_second=4) as live:
             # TODO: Add keyboard listener to exit with 'q'
             while self.is_monitoring: # Loop monitoring utama
                 try:
@@ -144,7 +131,5 @@ class JoinManager:
         if self.is_monitoring:
             self.is_monitoring = False
             # JANGAN panggil stop() di sini agar worker tetap berjalan di background
-            
-        os.system("clear")
-        print("\033[93m[!] Proses monitoring disinkronkan. Kembali ke menu utama...\033[0m")
-        time.sleep(1)
+
+        # Tidak perlu clear atau print di sini, karena 'transient=True' akan mengembalikan layar secara otomatis.
