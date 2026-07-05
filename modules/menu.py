@@ -15,6 +15,7 @@ from modules.package import PackageManager
 from modules.settings import SettingsManager
 from modules.join import JoinManager
 from modules.arrange import ArrangeManager
+from modules.launcher import LauncherEngine
 from modules.optimize import OptimizeManager
 from modules.webhook import WebhookManager
 from modules.utils import UtilsManager
@@ -26,10 +27,14 @@ class MainMenu:
         self.config_mgr = config_mgr
         self.logger = logger
         
+        # Buat LauncherEngine di sini agar persisten selama aplikasi berjalan
+        self.launcher_engine = LauncherEngine(config_mgr, logger)
+        
         # Inisialisasi sub-modul aman tanpa memicu fungsi internal
         self.package_mgr = PackageManager(config_mgr, logger)
         self.settings_mgr = SettingsManager(config_mgr, logger)
-        self.join_mgr = JoinManager(config_mgr, logger)
+        # Berikan instance LauncherEngine yang sudah ada ke JoinManager
+        self.join_mgr = JoinManager(config_mgr, logger, self.launcher_engine)
         self.arrange_mgr = ArrangeManager(config_mgr, logger)
         self.optimize_mgr = OptimizeManager(config_mgr, logger)
         self.webhook_mgr = WebhookManager(config_mgr, logger)
@@ -89,6 +94,7 @@ class MainMenu:
             return False
             
         # PENCEGAHAN MENTAL: Bersihkan buffer input sebelum menahan layar
+        # Hentikan engine hanya jika keluar dari aplikasi, bukan dari menu join
         if choice != "8":
             try:
                 sys.stdin.flush() # Flush sisa enter gaib di Termux
@@ -97,5 +103,7 @@ class MainMenu:
             print("\n")
             console.print("[dim white]─────────────────────────────────────────────────[/dim white]")
             Prompt.ask("[bold green]Tekan Enter untuk kembali ke Menu Utama[/bold green]", choices=[], default="")
+        else:
+            self.launcher_engine.stop()
             
         return True

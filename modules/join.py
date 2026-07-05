@@ -17,13 +17,13 @@ from modules.status import PackageStatus
 from modules.xml_manager import XMLManager
 
 class JoinManager:
-    def __init__(self, config_mgr, logger):
+    def __init__(self, config_mgr, logger, launcher_engine: LauncherEngine):
         self.config_mgr = config_mgr
         self.logger = logger
         
         from modules.webhook import WebhookManager
         from modules.arrange import ArrangeManager
-        
+
         self.webhook_mgr = WebhookManager(config_mgr, logger)
         self.arrange_mgr = ArrangeManager(config_mgr, logger)
         self.proc = ProcessManager(logger)
@@ -43,13 +43,7 @@ class JoinManager:
         }
         self.grid_mgr = GridManager(self.grid_config)
         self.xml_mgr = XMLManager(self.proc)
-        self.launcher_engine = LauncherEngine(
-            config_mgr,
-            logger,
-            process_manager=self.proc,
-            grid_manager=self.grid_mgr,
-            xml_manager=self.xml_mgr
-        )
+        self.launcher_engine = launcher_engine
         
         try:
             self.config_mgr.set_value("launch_delay", 5)
@@ -64,7 +58,11 @@ class JoinManager:
         return self.proc.is_running(pkg_name)
 
     def launch_all_instances(self, clones: list, place_id: str):
-        self.launcher_engine.start(place_id=place_id, packages=clones)
+        # Hanya jalankan 'start' jika engine belum berjalan (launch pertama kali)
+        if not self.launcher_engine.running:
+            self.launcher_engine.start(place_id=place_id, packages=clones)
+        else:
+            self.logger.info("Launcher engine is already running. Skipping initial launch.")
 
     def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
         """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
@@ -175,7 +173,7 @@ class JoinManager:
             curses.wrapper(curses_main)
         finally:
             self.is_monitoring = False
-            self.launcher_engine.stop()
+            # JANGAN panggil stop() di sini agar worker tetap berjalan di background
             
         os.system("clear")
         print("\033[93m[!] Proses monitoring disinkronkan. Kembali ke menu utama...\033[0m")
