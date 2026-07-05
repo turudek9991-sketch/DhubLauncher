@@ -22,6 +22,20 @@ class LauncherEngine:
     def scan_packages(self) -> list:
         return self.proc.list_packages()
 
+    def _launch_one(self, pkg: str, coordinate: dict, place_id: str):
+        """
+        Satu siklus launch berat untuk satu package: force-stop -> inject XML -> am start.
+        Urutan dan timing dijaga identik dengan join.py versi lama yang sudah terbukti stabil.
+        """
+        self.clone_statuses[pkg] = PackageStatus.Loading
+        self.proc.force_stop(pkg)
+        time.sleep(0.5)
+
+        self.xml_mgr.inject(pkg, coordinate)
+
+        self.clone_statuses[pkg] = PackageStatus.Launching
+        self.proc.launch_package(pkg, place_id)
+
     def start(self, place_id: str = "", packages: list = None):
         if self.running:
             return
@@ -36,15 +50,33 @@ class LauncherEngine:
 
         total = len(clones)
         delay_cfg = 5
+        coordinates = {}
 
+        # FASE 1 - INITIAL LAUNCH (sequential, satu thread, identik dengan versi lama)
+        # Sengaja TIDAK diparalelkan. Root/su call yang konkuren antar package inilah
+        # yang menyebabkan Roblox gagal terbuka setelah refactor sebelumnya.
         for idx, pkg in enumerate(clones):
             if not self.running:
                 break
 
             coordinate = self.grid_mgr.calculate_xml_coordinates(idx)
+            coordinates[pkg] = coordinate
+
+            self._launch_one(pkg, coordinate, place_id)
+
+            if idx < total - 1:
+                time.sleep(delay_cfg)
+
+        # FASE 2 - SELF-HEALING MONITOR (per package, dimulai HANYA setelah fase 1 selesai)
+        # Tiap worker hanya memantau dan menyembuhkan packagenya sendiri saat crash.
+        # Tidak pernah me-restart semua instance sekaligus.
+        for pkg in clones:
+            if not self.running:
+                break
+
             worker = PackageWorker(
                 package=pkg,
-                coordinate=coordinate,
+                coordinate=coordinates[pkg],
                 place_id=place_id,
                 process_manager=self.proc,
                 xml_manager=self.xml_mgr,
@@ -54,9 +86,6 @@ class LauncherEngine:
             )
             self.workers[pkg] = worker
             worker.start()
-
-            if idx < total - 1:
-                time.sleep(delay_cfg)
 
     def stop(self):
         self.running = False
