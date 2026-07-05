@@ -5,6 +5,7 @@ from modules.status import PackageStatus
 
 
 class PackageWorker:
+    """Worker terisolasi yang memonitor dan menyembuhkan satu package aplikasi."""
     def __init__(
         self,
         package: str,
@@ -15,7 +16,7 @@ class PackageWorker:
         retry_manager,
         status_store: dict,
         logger,
-        check_interval: float = 2.0,
+        check_interval: float = 3.0,
         launch_check_delay: float = 15.0
     ):
         self.package = package
@@ -59,6 +60,7 @@ class PackageWorker:
         self.proc.force_stop(self.package)
         time.sleep(0.5)
 
+        self.logger.info(f"[{self.package}] Injecting XML grid coordinates...")
         self.xml_mgr.inject(self.package, self.coordinate)
 
         self.set_status(PackageStatus.Launching)
@@ -70,32 +72,40 @@ class PackageWorker:
         # benar-benar online sebelum dievaluasi, supaya tidak langsung dianggap mati.
         self._sleep_with_stop(self.launch_check_delay)
 
-        while self.running.is_set():
-            current_status = self.status_store.get(self.package)
+        debounce_count = 0
+        max_debounce = 3 # Aplikasi harus mati 3 kali berturut-turut untuk dikonfirmasi
 
+        while self.running.is_set():
             if self.proc.is_running(self.package):
                 self.retry_mgr.reset()
+                debounce_count = 0
                 self.set_status(PackageStatus.Online)
-                time.sleep(self.check_interval)
+                self._sleep_with_stop(self.check_interval)
                 continue
 
-            # Jika proses tidak berjalan atau dalam status error, picu penyembuhan
-            if current_status == PackageStatus.Error:
-                self.logger.warning(f"Package {self.package} is in Error state. Forcing heal.")
+            # DEBOUNCE: Proses tidak terdeteksi, mulai hitung.
+            debounce_count += 1
+            self.logger.warning(f"[{self.package}] Offline detection count: {debounce_count}/{max_debounce}")
 
+            if debounce_count < max_debounce:
+                self._sleep_with_stop(self.check_interval)
+                continue
+
+            # CONFIRMED OFFLINE: Lakukan proses healing.
+            self.logger.error(f"[{self.package}] Confirmed OFFLINE. Initiating self-healing protocol.")
             self._heal()
+            debounce_count = 0 # Reset debounce setelah heal
+
+            # Beri waktu aplikasi untuk startup sebelum loop verifikasi berikutnya
             self._sleep_with_stop(self.launch_check_delay)
-            
-            if not self.running.is_set():
-                break
 
             if self.proc.is_running(self.package):
                 self.retry_mgr.reset()
                 self.set_status(PackageStatus.Online)
             else:
                 self.retry_mgr.record_failure()
-                self.set_status(PackageStatus.Error)
-                self.logger.error(f"Package {self.package} failed to start. Status set to Error.")
+                self.set_status(PackageStatus.Error) # Set status Error jika gagal restart
+                self.logger.error(f"[{self.package}] Heal failed. Entering cooldown. Attempts: {self.retry_mgr.failed_attempts}")
                 self.retry_mgr.wait_if_needed(self.running)
 
     def _sleep_with_stop(self, seconds: float):
