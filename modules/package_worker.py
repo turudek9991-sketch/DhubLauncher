@@ -98,15 +98,18 @@ class PackageWorker:
             return False, "Window not focused or visible"
         self.health_score += 25
 
-        # 3. UI Detector (bobot 50%) - Paling penting
-        # Periksa teks error pada UI. Ini adalah panggilan yang mahal, jangan terlalu sering.
-        # Kita akan menggunakan `dumpsys activity top` sebagai proxy yang lebih cepat
-        activity_top = self.proc.run("dumpsys activity top")
+        # 3. UI Detector (bobot 50%) - Paling penting dan andal
+        # Hanya berjalan jika window sedang fokus untuk menghindari salah deteksi.
+        # Menggunakan uiautomator yang lebih presisi daripada dumpsys activity.
         error_keywords = ["Reconnect", "Leave", "Disconnected", "Connection Lost", "Connection Failed", "Try Again", "Error 277", "Error 278", "Error 279"]
-        for keyword in error_keywords:
-            if keyword in activity_top:
-                 # Pastikan error ini relevan dengan window kita
-                 if self.package in self.proc.run("dumpsys window windows | grep mCurrentFocus"):
+        
+        # Cek apakah window aplikasi ini benar-benar yang sedang aktif
+        focused_window_check = self.proc.run(f"dumpsys window windows | grep mCurrentFocus | grep {self.package}")
+        if focused_window_check:
+            # Jalankan uiautomator dump yang mahal hanya jika diperlukan
+            ui_dump = self.proc.run("uiautomator dump /dev/null && cat /sdcard/window_dump.xml")
+            for keyword in error_keywords:
+                if f'text="{keyword}"' in ui_dump:
                     return False, f"UI Error Detected: '{keyword}'"
         self.health_score += 50
 
