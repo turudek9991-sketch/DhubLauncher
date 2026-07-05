@@ -48,11 +48,24 @@ class ProcessManager:
 
     def is_running(self, pkg: str) -> bool:
         """
-        Memeriksa apakah proses aplikasi berjalan di foreground atau memiliki aktivitas penting.
-        Metode ini lebih andal daripada 'pidof' untuk mendeteksi crash.
+        Memeriksa status aplikasi menggunakan beberapa vektor untuk keandalan maksimum.
+        Aplikasi dianggap berjalan jika salah satu dari pemeriksaan ini berhasil.
         """
-        output = self.run(f"dumpsys activity processes | grep -E 'pid=|top-activity' | grep {pkg}")
-        return "top-activity" in output or "pid=" in output
+        # Vektor 1: Periksa PID menggunakan pidof (cepat dan efisien)
+        pid_output = self.run(f"pidof {pkg}")
+        if pid_output:
+            self.logger.info(f"Check '{pkg}': PID found ({pid_output}). Status: Running.")
+            return True
+
+        # Vektor 2: Periksa daftar proses yang berjalan (lebih lambat tapi lebih detail)
+        ps_output = self.run(f"ps -A | grep {pkg}")
+        if pkg in ps_output:
+            self.logger.info(f"Check '{pkg}': Process entry found in 'ps'. Status: Running.")
+            return True
+
+        # Jika semua pemeriksaan gagal, aplikasi dianggap mati.
+        self.logger.warning(f"Check '{pkg}': PID not found and process not in 'ps' list. Status: Offline.")
+        return False
 
     def list_packages(self) -> list:
         """Memindai sistem secara instan untuk mencari semua package yang terinstal dengan unsur 'roblox'."""
