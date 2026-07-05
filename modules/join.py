@@ -1,13 +1,12 @@
 """
-DHub-Rejoin - App Cloner XML Grid Engine (Super Compact Frame Fix)
+DHub-Rejoin - Premium Join & Monitoring Interface
 Author: Senior Python Developer
-Description: Bypasses Android WindowManager limitations by directly modifying App Cloner's
-             shared_preferences XML layout properties using micro right-side bounds.
+Description: Provides a professional, real-time monitoring dashboard for all running instances,
+             built with Rich for a flicker-free, premium user experience.
 """
 
 import time
 import os
-import curses
 import threading
 
 from modules.grid_manager import GridManager
@@ -15,6 +14,11 @@ from modules.launcher import LauncherEngine
 from modules.process_manager import ProcessManager
 from modules.status import PackageStatus
 from modules.xml_manager import XMLManager
+
+from rich.console import Console
+from rich.table import Table
+from rich.live import Live
+from rich.layout import Layout
 
 class JoinManager:
     def __init__(self, config_mgr, logger, launcher_engine: LauncherEngine):
@@ -44,6 +48,9 @@ class JoinManager:
         self.grid_mgr = GridManager(self.grid_config)
         self.xml_mgr = XMLManager(self.proc)
         self.launcher_engine = launcher_engine
+
+        # SUNTIKKAN manajer yang benar ke engine yang sudah ada!
+        self.launcher_engine.set_managers(grid_manager=self.grid_mgr, xml_manager=self.xml_mgr)
         
         try:
             self.config_mgr.set_value("launch_delay", 5)
@@ -64,72 +71,54 @@ class JoinManager:
         else:
             self.logger.info("Launcher engine is already running. Skipping initial launch.")
 
-    def print_kaeru_curses(self, stdscr, clones: list, ram_info: str):
-        """Merender TUI Panel legendaris KAERU yang kokoh, rapi, dan simetris di layar Termux."""
-        stdscr.erase()
-        
-        curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_CYAN, -1)
-        curses.init_pair(2, curses.COLOR_WHITE, -1)
-        curses.init_pair(3, curses.COLOR_GREEN, -1)
-        curses.init_pair(4, curses.COLOR_YELLOW, -1)
-        curses.init_pair(5, curses.COLOR_RED, -1)
-        curses.init_pair(6, curses.COLOR_MAGENTA, -1)
-        
-        cyan = curses.color_pair(1)
-        white = curses.color_pair(2)
-        
-        # Logo Teks Besar DHUB
-        stdscr.addstr(0, 2, "██████╗ ██╗  ██╗██╗   ██╗██████╗", cyan | curses.A_BOLD)
-        stdscr.addstr(1, 2, "██╔══██╗██║  ██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
-        stdscr.addstr(2, 2, "██║  ██║███████║██║   ██║██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(3, 2, "██║  ██║██╔══██║██║   ██║██╔══██╗", cyan | curses.A_BOLD)
-        stdscr.addstr(4, 2, "██████╔╝██║  ██║╚██████╔╝██████╔╝", cyan | curses.A_BOLD)
-        stdscr.addstr(5, 2, "╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   Launcher v1.0 - @dimsgti", cyan | curses.A_BOLD)
-        
-        # Bingkai Tabel Estetis KAERU
-        stdscr.addstr(7, 0, "┌──────────────────────────────────────────┬────────────────────────┐", cyan)
-        stdscr.addstr(8, 0, "│ PACKAGE                                  │ STATUS                 │", cyan)
-        stdscr.addstr(8, 2, "PACKAGE", white | curses.A_BOLD)
-        stdscr.addstr(8, 45, "STATUS", cyan | curses.A_BOLD)
-        stdscr.addstr(9, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
-        
-        # Informasi Konfigurasi Engine
-        stdscr.addstr(10, 0, "│ System Memory                            │                        │", cyan)
-        stdscr.addstr(10, 45, f"Free: {ram_info}", white)
-        
-        stdscr.addstr(11, 0, "│ Launch Delay                             │                        │", cyan)
-        stdscr.addstr(11, 45, "5s (Locked)", white)
-        
-        stdscr.addstr(12, 0, "│ Duration                                 │                        │", cyan)
-        stdscr.addstr(12, 45, "Lifetime", white)
-        
-        stdscr.addstr(13, 0, "├──────────────────────────────────────────┼────────────────────────┤", cyan)
-        
-        current_row = 14
-        for idx, pkg in enumerate(clones[:8]):
-            stdscr.addstr(current_row, 0, "│                                          │                        │", cyan)
-            display_name = pkg[:38]
-            stdscr.addstr(current_row, 2, display_name, white)
-            
+    def _generate_status_table(self, clones: list) -> Table:
+        """Membuat tabel status instance yang modern dan bersih."""
+        table = Table(box=None, expand=True)
+        table.add_column("PACKAGE", style="cyan", no_wrap=True, width=45)
+        table.add_column("STATUS", style="white", width=15)
+        table.add_column("PID", style="dim white", justify="left")
+
+        status_styles = {
+            PackageStatus.Online: ("● Online", "bold green"),
+            PackageStatus.Launching: ("● Launching", "bold yellow"),
+            PackageStatus.Loading: ("● Loading", "bold magenta"),
+            PackageStatus.Restarting: ("● Restarting", "bold yellow"),
+            PackageStatus.Error: ("● Error", "bold red"),
+            PackageStatus.Offline: ("● Offline", "dim white"),
+        }
+
+        for pkg in clones:
             status = self.clone_statuses.get(pkg, PackageStatus.Offline)
-            status_text = status.value if isinstance(status, PackageStatus) else str(status)
-            if status_text == PackageStatus.Online.value:
-                c_style = curses.color_pair(3) | curses.A_BOLD
-            elif status_text == PackageStatus.Launching.value:
-                c_style = curses.color_pair(4) | curses.A_BOLD
-            elif status_text == PackageStatus.Loading.value:
-                c_style = curses.color_pair(6) | curses.A_BOLD
-            else:
-                c_style = curses.color_pair(5) | curses.A_DIM
-                
-            stdscr.addstr(current_row, 45, status_text, c_style)
-            current_row += 1
+            status_text, style = status_styles.get(status, ("● Unknown", "dim white"))
             
-        stdscr.addstr(current_row, 0, "└──────────────────────────────────────────┴────────────────────────┘", cyan)
-        stdscr.addstr(current_row + 2, 0, "» Tekan 'q' atau 'Enter' untuk kembali ke Control Panel...", white | curses.A_DIM)
+            pid = self.proc.run(f"pidof {pkg}").strip() or "----"
+
+            table.add_row(pkg, f"[{style}]{status_text}[/]", pid)
         
-        stdscr.refresh()
+        return table
+
+    def _generate_layout(self, clones: list, ram_info: str) -> Layout:
+        """Membangun layout TUI yang dinamis dan premium."""
+        layout = Layout()
+        header_text = """
+██████╗ ██╗  ██╗██╗   ██╗██████╗ 
+██╔══██╗██║  ██║██║   ██║██╔══██╗
+██║  ██║███████║██║   ██║██████╔╝
+██║  ██║██╔══██║██║   ██║██╔══██╗
+██████╔╝██║  ██║╚██████╔╝██████╔╝
+╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝   [dim white]Launcher v2.0 - @dimsgti[/]
+        """
+        footer_text = "[dim white]DHUB Launcher Professional Edition | Self Healing Enabled | Press [bold]Q[/bold] to Exit Monitoring[/]"
+
+        layout.split(
+            Layout(name="header", size=8),
+            Layout(name="main"),
+            Layout(name="footer", size=3),
+        )
+        layout["header"].update(f"[bold cyan]{header_text}[/]")
+        layout["main"].update(self._generate_status_table(clones))
+        layout["footer"].update(footer_text)
+        return layout
 
     def launch_app(self):
         place_id = self.config_mgr.config_data.get("place_id", "")
@@ -152,26 +141,20 @@ class JoinManager:
             daemon=True
         ).start()
 
-        def curses_main(stdscr):
-            curses.curs_set(0)
-            stdscr.nodelay(True)
-            stdscr.timeout(500)
-            
+        console = Console()
+        with Live(self._generate_layout(installed_clones, ram_info), screen=True, transient=True, refresh_per_second=4) as live:
+            # TODO: Add keyboard listener to exit with 'q'
             while self.is_monitoring:
-                # Selalu ambil status terbaru di setiap frame render
-                self.clone_statuses = self.launcher_engine.get_statuses()
-                self.print_kaeru_curses(stdscr, installed_clones, ram_info)
                 try:
-                    key = stdscr.getch()
-                    if key in [ord('q'), ord('Q'), 10]:
-                        break
-                except Exception:
-                    pass
-                time.sleep(0.3)
-
-        try:
-            curses.wrapper(curses_main)
-        finally:
+                    self.clone_statuses = self.launcher_engine.get_statuses()
+                    live.update(self._generate_layout(installed_clones, ram_info))
+                    time.sleep(0.5)
+                except KeyboardInterrupt:
+                    self.is_monitoring = False
+                    break
+        
+        # Cleanup
+        if self.is_monitoring:
             self.is_monitoring = False
             # JANGAN panggil stop() di sini agar worker tetap berjalan di background
             
