@@ -1,0 +1,9 @@
+{
+  "package": "",
+  "launch_delay": 10,
+  "theme": "dark",
+  "discord_webhook": "",
+  "autosave": true,
+  "log_level": "INFO",
+  "place_id": "95206881"
+}
