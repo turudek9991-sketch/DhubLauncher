@@ -38,13 +38,15 @@ class LauncherEngine:
         Satu siklus launch berat untuk satu package: force-stop -> inject XML -> am start.
         Urutan dan timing dijaga identik dengan join.py versi lama yang sudah terbukti stabil.
         """
-        self.clone_statuses[pkg] = PackageStatus.Loading
+        # Pastikan status selalu berupa dictionary
+        self.clone_statuses[pkg]["status"] = PackageStatus.Loading
         self.proc.force_stop(pkg)
         time.sleep(0.5)
 
         self.xml_mgr.inject(pkg, coordinate)
 
-        self.clone_statuses[pkg] = PackageStatus.Launching
+        # Pastikan status selalu berupa dictionary
+        self.clone_statuses[pkg]["status"] = PackageStatus.Launching
         self.proc.launch_package(pkg, place_id)
 
     def start(self, place_id: str = "", packages: list = None):
@@ -57,7 +59,12 @@ class LauncherEngine:
         self.workers.clear()
 
         for pkg in clones:
-            self.clone_statuses[pkg] = PackageStatus.Offline
+            self.clone_statuses[pkg] = {
+                "status": PackageStatus.Offline,
+                "uptime": 0,
+                "retries": 0,
+                "health": 0
+            }
 
         total = len(clones)
         delay_cfg = 5
