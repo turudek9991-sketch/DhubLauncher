@@ -15,6 +15,7 @@ from modules.process_manager import ProcessManager
 from modules.status import PackageStatus
 from modules.xml_manager import XMLManager
 
+from rich.align import Align
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
@@ -58,55 +59,89 @@ class JoinManager:
         else:
             self.logger.info("Launcher engine is already running. Skipping initial launch.")
 
-    def _generate_status_table(self, clones: list) -> Panel:
+    def _generate_status_table(self, clones: list) -> Table:
         """Membangun tabel status instance yang premium dan informatif."""
         table = Table(
-            title="Autonomous Multi-Instance Engine",
-            header_style="bold cyan",
-            border_style="dim white",
+            header_style="bold white",
+            border_style="dim",
             show_header=True,
-            box=None,
-            expand=True
+            expand=True,
+            row_styles=["", "dim"]
         )
-        table.add_column("PACKAGE", style="cyan", no_wrap=True, width=35)
-        table.add_column("STATUS", style="white", width=15)
-        table.add_column("HEALTH", justify="center", style="white")
-        table.add_column("RETRY", justify="center", style="yellow")
-        table.add_column("UPTIME", justify="right", style="dim white")
+        table.add_column("ID", justify="center", style="cyan")
+        table.add_column("Package", no_wrap=True, width=40, style="white")
+        table.add_column("Status", width=15)
+        table.add_column("Retry", justify="center")
+        table.add_column("Uptime", justify="center")
+        table.add_column("Health", justify="right")
 
         status_styles = {
-            PackageStatus.Online: ("● Online", "bold green"),
-            PackageStatus.Launching: ("● Launching", "bold yellow"),
-            PackageStatus.Loading: ("● Loading", "bold magenta"),
+            PackageStatus.Online: ("● ONLINE", "bold green"),
+            PackageStatus.Launching: ("● LAUNCHING", "bold yellow"),
+            PackageStatus.Loading: ("● LOADING", "bold magenta"),
             PackageStatus.Restarting: ("RECOVERING", "bold yellow"),
             PackageStatus.Error: ("ERROR", "bold red"),
             PackageStatus.Offline: ("OFFLINE", "dim white"),
         }
 
-        for pkg in clones:
+        for idx, pkg in enumerate(clones, 1):
             status_obj = self.clone_statuses.get(pkg, {"status": PackageStatus.Offline, "uptime": 0, "retries": 0, "health": 0})
             status = status_obj.get("status", PackageStatus.Offline)
             status_text, style = status_styles.get(status, ("UNKNOWN", "dim white"))
 
             uptime_seconds = status_obj.get("uptime", 0)
             uptime_str = time.strftime('%H:%M:%S', time.gmtime(uptime_seconds))
-            retries = status_obj.get("retries", 0)
-            health = status_obj.get("health", 0)
+            retries = str(status_obj.get("retries", 0))
+            health = f"{status_obj.get('health', 0)}%"
 
             table.add_row(
+                str(idx).zfill(2),
                 pkg,
                 f"[{style}]{status_text}[/]",
-                f"{health}%",
-                str(retries),
+                retries,
                 uptime_str
+                health
             )
-        return Panel(table, title="[bold white]DHUB LAUNCHER PRO[/bold white]", border_style="cyan", expand=True)
+        return table
 
     def _generate_layout(self, clones: list, ram_info: str) -> Layout:
         """Membangun layout TUI yang dinamis dan premium."""
-        # Footer bisa ditambahkan di sini nanti dengan info CPU, RAM, dll.
-        layout = Layout(name="main")
-        layout["main"].update(self._generate_status_table(clones))
+        layout = Layout()
+
+        header_text = """
+██████╗ ██╗  ██╗██╗   ██╗██████╗ 
+██╔══██╗██║  ██║██║   ██║██╔══██╗
+██║  ██║███████║██║   ██║██████╔╝
+██║  ██║██╔══██║██║   ██║██╔══██╗
+██████╔╝██║  ██║╚██████╔╝██████╔╝
+╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ 
+"""
+        
+        header = Align.center(
+            f"[bold cyan]{header_text}[/bold cyan]\n"
+            "[dim white]DHUB LAUNCHER PRO v2.0 • Multi Instance Automation[/dim white]"
+        )
+
+        # Placeholder untuk panel info atas, bisa diisi nanti
+        info_panel = Panel(
+            " ",
+            border_style="dim",
+            title="[bold white]Engine Status & Device Monitor[/bold white]",
+            title_align="left"
+        )
+
+        instance_panel = Panel(
+            self._generate_status_table(clones),
+            border_style="dim",
+            title="[bold white]Instance Monitor[/bold white]",
+            title_align="left"
+        )
+
+        layout.split_column(
+            Layout(header, size=9),
+            Layout(info_panel, size=5),
+            Layout(instance_panel, name="main")
+        )
         return layout
 
     def launch_app(self):
