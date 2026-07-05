@@ -45,7 +45,31 @@ class PackageWorker:
     def set_status(self, status: PackageStatus):
         self.status_store[self.package] = status
 
+    def _heal(self):
+        """
+        Self-healing relaunch untuk package INI SAJA: force-stop -> inject XML -> am start.
+        Dipanggil hanya ketika package ini terdeteksi mati - tidak pernah menyentuh clone lain.
+        """
+        current_status = self.status_store.get(self.package)
+        if current_status in [PackageStatus.Online, PackageStatus.Launching, PackageStatus.Error]:
+            self.set_status(PackageStatus.Restarting)
+        else:
+            self.set_status(PackageStatus.Loading)
+
+        self.proc.force_stop(self.package)
+        time.sleep(0.5)
+
+        self.xml_mgr.inject(self.package, self.coordinate)
+
+        self.set_status(PackageStatus.Launching)
+        self.proc.launch_package(self.package, self.place_id)
+
     def run(self):
+        # Grace period: launch awal untuk package ini sudah dilakukan secara sequential
+        # oleh LauncherEngine SEBELUM thread monitor ini dimulai. Beri waktu agar
+        # benar-benar online sebelum dievaluasi, supaya tidak langsung dianggap mati.
+        self._sleep_with_stop(self.launch_check_delay)
+
         while self.running.is_set():
             if self.proc.is_running(self.package):
                 self.retry_mgr.reset()
@@ -53,19 +77,7 @@ class PackageWorker:
                 time.sleep(self.check_interval)
                 continue
 
-            current_status = self.status_store.get(self.package)
-            if current_status in [PackageStatus.Online, PackageStatus.Launching, PackageStatus.Error]:
-                self.set_status(PackageStatus.Restarting)
-            else:
-                self.set_status(PackageStatus.Loading)
-
-            self.proc.force_stop(self.package)
-            time.sleep(0.5)
-
-            self.xml_mgr.inject(self.package, self.coordinate)
-
-            self.set_status(PackageStatus.Launching)
-            self.proc.launch_package(self.package, self.place_id)
+            self._heal()
 
             self._sleep_with_stop(self.launch_check_delay)
             if not self.running.is_set():
