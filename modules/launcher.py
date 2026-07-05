@@ -9,12 +9,23 @@ from modules.xml_manager import XMLManager
 
 
 class LauncherEngine:
-    def __init__(self, config_mgr, logger, process_manager=None, grid_manager=None, xml_manager=None):
+    def __init__(self, config_mgr, logger, process_manager=None):
         self.config_mgr = config_mgr
         self.logger = logger
         self.proc = process_manager or ProcessManager(logger)
-        self.grid_mgr = grid_manager or GridManager()
-        self.xml_mgr = xml_manager or XMLManager(self.proc)
+        
+        # [SUPER COMPACT KAERU MATRIX - DPI 600 HARD LOCK]
+        # Konfigurasi grid dipindahkan ke sini dari JoinManager untuk sentralisasi
+        self.grid_config = {
+            "start_x_base": 660,
+            "window_width": 180,
+            "window_height": 100,
+            "columns": 2,
+            "top_margin": 60,
+            "gap": 5
+        }
+        self.grid_mgr = GridManager(self.grid_config)
+        self.xml_mgr = XMLManager(self.proc)
         self.workers = {}
         self.clone_statuses = {}
         self.running = False
