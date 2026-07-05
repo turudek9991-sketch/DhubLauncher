@@ -47,9 +47,12 @@ class ProcessManager:
         return self.run(f"cmd package resolve-activity --brief {pkg} | tail -n 1")
 
     def is_running(self, pkg: str) -> bool:
-        """Memeriksa apakah proses Android package aktif menggunakan perintah pidof."""
-        pid = self.run(f"pidof {pkg}")
-        return len(pid) > 0
+        """
+        Memeriksa apakah proses aplikasi berjalan di foreground atau memiliki aktivitas penting.
+        Metode ini lebih andal daripada 'pidof' untuk mendeteksi crash.
+        """
+        output = self.run(f"dumpsys activity processes | grep -E 'pid=|top-activity' | grep {pkg}")
+        return "top-activity" in output or "pid=" in output
 
     def list_packages(self) -> list:
         """Memindai sistem secara instan untuk mencari semua package yang terinstal dengan unsur 'roblox'."""

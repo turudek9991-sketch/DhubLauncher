@@ -160,6 +160,8 @@ class JoinManager:
             stdscr.timeout(500)
             
             while self.is_monitoring:
+                # Selalu ambil status terbaru di setiap frame render
+                self.clone_statuses = self.launcher_engine.get_statuses()
                 self.print_kaeru_curses(stdscr, installed_clones, ram_info)
                 try:
                     key = stdscr.getch()

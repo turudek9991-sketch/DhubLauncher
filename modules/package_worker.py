@@ -71,15 +71,21 @@ class PackageWorker:
         self._sleep_with_stop(self.launch_check_delay)
 
         while self.running.is_set():
+            current_status = self.status_store.get(self.package)
+
             if self.proc.is_running(self.package):
                 self.retry_mgr.reset()
                 self.set_status(PackageStatus.Online)
                 time.sleep(self.check_interval)
                 continue
 
-            self._heal()
+            # Jika proses tidak berjalan atau dalam status error, picu penyembuhan
+            if current_status == PackageStatus.Error:
+                self.logger.warning(f"Package {self.package} is in Error state. Forcing heal.")
 
+            self._heal()
             self._sleep_with_stop(self.launch_check_delay)
+            
             if not self.running.is_set():
                 break
 
@@ -89,8 +95,8 @@ class PackageWorker:
             else:
                 self.retry_mgr.record_failure()
                 self.set_status(PackageStatus.Error)
+                self.logger.error(f"Package {self.package} failed to start. Status set to Error.")
                 self.retry_mgr.wait_if_needed(self.running)
-                self._sleep_with_stop(self.check_interval)
 
     def _sleep_with_stop(self, seconds: float):
         end_time = time.time() + seconds
