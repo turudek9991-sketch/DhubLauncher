@@ -33,11 +33,11 @@ class ProcessManager:
 
     def launch_package(self, pkg: str, place_id: str = None) -> str:
         if place_id:
-            cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg}"
+            cmd = f"am start -a android.intent.action.VIEW -d 'roblox://placeID={place_id}' -p {pkg} --activity-brought-to-front"
         else:
             main_act = self.resolve_activity(pkg)
             if main_act and "/" in main_act:
-                cmd = f"am start -n {main_act}"
+                cmd = f"am start -n {main_act} --activity-brought-to-front"
             else:
                 cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
 
