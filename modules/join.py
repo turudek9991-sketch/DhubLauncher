@@ -19,6 +19,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 from rich.layout import Layout
+from rich.panel import Panel
 
 class JoinManager:
     def __init__(self, config_mgr, logger, launcher_engine: LauncherEngine):
