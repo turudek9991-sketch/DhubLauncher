@@ -13,6 +13,9 @@ class RetryManager:
     def record_failure(self):
         self.failed_attempts += 1
 
+    def is_exceeded(self) -> bool:
+        return self.failed_attempts >= self.max_retries
+
     def wait_if_needed(self, running_event=None):
         if self.failed_attempts < self.max_retries:
             return
