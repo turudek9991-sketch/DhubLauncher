@@ -99,7 +99,7 @@ class JoinManager:
                 pkg,
                 f"[{style}]{status_text}[/]",
                 retries,
-                uptime_str
+                uptime_str,
                 health
             )
         return table
